@@ -1,0 +1,73 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<artifactId>bonds</artifactId>
+	<version>0.0.1</version>
+	<repositories>
+		<repository>
+			<id>local-maven-repo</id>
+			<url>file:///${project.basedir}/local-maven-repo</url>
+		</repository>
+	</repositories>
+	<build>
+		<finalName>bonds</finalName>
+		<sourceDirectory>src</sourceDirectory>
+		<resources>
+			<resource>
+				<directory>res</directory>
+			</resource>
+		</resources>
+		<plugins>
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.8.1</version>
+				<configuration>
+					<release>8</release>
+					<!-- <target>1.8</target> -->
+				</configuration>
+			</plugin>
+			<plugin>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<configuration>
+					<archive>
+						<manifest>
+							<mainClass>amralhossary.bonds.ProteinParser</mainClass>
+						</manifest>
+					</archive>
+					<descriptorRefs>
+						<descriptorRef>jar-with-dependencies</descriptorRef>
+					</descriptorRefs>
+					<appendAssemblyId>false</appendAssemblyId> <!-- exclude jar-with-dependencies from jar name  -->
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+	<dependencies>
+		<dependency>
+			<groupId>org.biojava</groupId>
+			<artifactId>biojava-structure</artifactId>
+			<version>6.0.0-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>org.biojava</groupId>
+			<artifactId>biojava-structure-gui</artifactId>
+			<version>6.0.0-alpha3</version>
+		</dependency>
+		<!-- <dependency> <groupId>net.sourceforge.jmol</groupId> <artifactId>jmol</artifactId> 
+			<version>14.31.10</version> </dependency> -->
+
+		<dependency>
+			<groupId>docopt</groupId>
+			<artifactId>docopt.java</artifactId>
+			<version>0.6.0-SNAPSHOT</version>
+		</dependency>
+	</dependencies>
+	<groupId>hossary</groupId>
+	<name>Rare Bonds Explorer</name>
+	<description>Rare Bonds in Protein structures finder</description>
+	<scm>
+		<url>https://github.com/aalhossary/bonds.git</url>
+		<developerConnection>Amr ALHOSSARY</developerConnection>
+	</scm>
+</project>
