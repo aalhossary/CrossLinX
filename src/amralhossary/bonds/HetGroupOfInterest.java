@@ -71,7 +71,7 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 	}
 
 	private void fillContents() {
-		this.suffix="|"+NAME_HET;
+		this.suffix="|"+NAME___HET;
 		List<Atom> atoms = getAtoms();
 		ArrayList<Atom> heavyAtomsOfInterest= new ArrayList<Atom>();
 		ArrayList<Atom> cAtomsOfInterest= new ArrayList<Atom>();

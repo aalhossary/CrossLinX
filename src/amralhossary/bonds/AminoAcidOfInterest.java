@@ -9,6 +9,7 @@ import org.biojava.nbio.structure.AminoAcid;
 import org.biojava.nbio.structure.AminoAcidImpl;
 import org.biojava.nbio.structure.Atom;
 import org.biojava.nbio.structure.Element;
+import org.biojava.nbio.structure.Group;
 
 /**
  * 
@@ -38,14 +39,14 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 		return new AminoAcidOfInterest(aminoAcidOfInterest);
 	}
 	
-	public AminoAcidOfInterest(AminoAcid aminoAcidOfInterest) {
+	public AminoAcidOfInterest(Group aminoAcidOfInterest) {
 		super();
 		//first stage: cloning
 		this.setPDBFlag(aminoAcidOfInterest.has3D());		
 		this.setResidueNumber(aminoAcidOfInterest.getResidueNumber());
 		this.setPDBName(aminoAcidOfInterest.getPDBName());
-		this.setAminoType(aminoAcidOfInterest.getAminoType());
-		this.setRecordType(aminoAcidOfInterest.getRecordType());
+//		this.setAminoType(aminoAcidOfInterest.getAminoType());
+//		this.setRecordType(aminoAcidOfInterest.getRecordType());
 		// copy the atoms
 		for (Atom atom : aminoAcidOfInterest.getAtoms()) {
 			this.addAtom(atom);
@@ -67,45 +68,83 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 	protected void setCodeType() {
 		// TODO replace this with enum
 		String pdbName = getPDBName();
-		if (GroupOfInterest.NAME_LYS.equals(pdbName) ) {
+		if (GroupOfInterest.NAME___LYS.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_LYS;
 //			ProteinParser.totalFoundLyc++;
-		}else if (GroupOfInterest.NAME_ARG.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___ARG.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_ARG;
 //			ProteinParser.totalFoundArg++;
-		}else if (GroupOfInterest.NAME_HIS.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___HIS.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_HIS;
 //			ProteinParser.totalFoundArg++;
-		}else if (GroupOfInterest.NAME_GLU.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___GLU.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_GLU;
 //			ProteinParser.totalFoundGlu++;
-		}else if (GroupOfInterest.NAME_ASP.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___ASP.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_ASP;
 //			ProteinParser.totalFoundAsp++;
-		}else if (GroupOfInterest.NAME_GLN.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___GLN.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_GLN;
 //			ProteinParser.totalFoundGln++;
-		}else if (GroupOfInterest.NAME_ASN.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___ASN.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_ASN;
 //			ProteinParser.totalFoundAsn++;
-		}else if (GroupOfInterest.NAME_CYS.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___CYS.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_CYS;
 //			ProteinParser.totalFoundCys++;
-		}else if (GroupOfInterest.NAME_THR.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___THR.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_THR;
 //			ProteinParser.totalFoundCys++;
-		}else if (GroupOfInterest.NAME_SER.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___SER.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_SER;
 //			ProteinParser.totalFoundCys++;
-		}else if (GroupOfInterest.NAME_TYR.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___TYR.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_TYR;
 //			ProteinParser.totalFoundCys++;
-		}else if (GroupOfInterest.NAME_CSO.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___CSO.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_CSO;
 //			ProteinParser.totalFoundCso++;
-		}else if (GroupOfInterest.NAME_SEC.equals(pdbName) ) {
+		}else if (GroupOfInterest.NAME___SEC.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_SEC;
 //			ProteinParser.totalFoundSec++;
+		} else if(pdbName.startsWith("D")){
+			if (GroupOfInterest.NAME_D_LYS.equals(pdbName) ) {
+				this.aAOfInterestType=GroupOfInterest.CODE_LYS;
+//				ProteinParser.totalFoundLyc++;
+			}else if (GroupOfInterest.NAME_D_ARG.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_ARG;
+//				ProteinParser.totalFoundArg++;
+			}else if (GroupOfInterest.NAME_D_HIS.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_HIS;
+//				ProteinParser.totalFoundArg++;
+			}else if (GroupOfInterest.NAME_D_GLU.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_GLU;
+//				ProteinParser.totalFoundGlu++;
+			}else if (GroupOfInterest.NAME_D_ASP.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_ASP;
+//				ProteinParser.totalFoundAsp++;
+			}else if (GroupOfInterest.NAME_D_GLN.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_GLN;
+//				ProteinParser.totalFoundGln++;
+			}else if (GroupOfInterest.NAME_D_ASN.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_ASN;
+//				ProteinParser.totalFoundAsn++;
+			}else if (GroupOfInterest.NAME_D_CYS.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_CYS;
+//				ProteinParser.totalFoundCys++;
+			}else if (GroupOfInterest.NAME_D_THR.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_THR;
+//				ProteinParser.totalFoundCys++;
+			}else if (GroupOfInterest.NAME_D_SER.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_SER;
+//				ProteinParser.totalFoundCys++;
+			}else if (GroupOfInterest.NAME_D_TYR.equals(pdbName)) {
+				this.aAOfInterestType=GroupOfInterest.CODE_TYR;
+//				ProteinParser.totalFoundCys++;
+			} else {
+				this.aAOfInterestType=GroupOfInterest.CODE_OTHERS;
+//			throw new IllegalArgumentException("Not of Interest");
+			}
 		}else {
 			this.aAOfInterestType=GroupOfInterest.CODE_OTHERS;
 //			throw new IllegalArgumentException("Not of Interest");
@@ -117,7 +156,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 		Atom atom, od = null;
 		switch (aAOfInterestType) {
 		case GroupOfInterest.CODE_LYS:
-			this.suffix="|"+GroupOfInterest.NAME_LYS;
+			this.suffix="|"+GroupOfInterest.NAME___LYS;
 			Atom nz=null;
 			nz = getAtom("NZ");
 			if (nz == null) {
@@ -129,7 +168,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			keyAtoms= keyNAtoms = new Atom[] {nz};
 			break;
 		case GroupOfInterest.CODE_ARG:
-			this.suffix="|"+GroupOfInterest.NAME_ARG;
+			this.suffix="|"+GroupOfInterest.NAME___ARG;
 			Atom ne=null;
 			ne = getAtom("NE");
 			if (ne == null) {
@@ -158,7 +197,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 				keyAtoms = keyNAtoms= new Atom[] {ne, nh1, nh2};
 			break;
 		case GroupOfInterest.CODE_HIS:
-			this.suffix="|"+GroupOfInterest.NAME_HIS;
+			this.suffix="|"+GroupOfInterest.NAME___HIS;
 			Atom nd1=null;
 			nd1 = getAtom("ND1");
 			if (nd1 == null) {
@@ -179,7 +218,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 				keyAtoms = keyNAtoms= new Atom[] {nd1, ne2};
 			break;
 		case GroupOfInterest.CODE_GLU:
-			this.suffix="|"+GroupOfInterest.NAME_GLU;
+			this.suffix="|"+GroupOfInterest.NAME___GLU;
 			atom = getAtom("CD");
 			if (atom == null) {
 				this.missingAtoms++;
@@ -187,7 +226,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			keyAtoms = keyCAtoms = new Atom[] {atom};
 			break;
 		case GroupOfInterest.CODE_GLN:
-			this.suffix="|"+GroupOfInterest.NAME_GLN;
+			this.suffix="|"+GroupOfInterest.NAME___GLN;
 			atom = getAtom("CD");
 			if (atom == null) {
 				this.missingAtoms++;
@@ -195,7 +234,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			keyAtoms = keyCAtoms = new Atom[] {atom};
 			break;
 		case GroupOfInterest.CODE_ASP:
-			this.suffix="|"+GroupOfInterest.NAME_ASP;
+			this.suffix="|"+GroupOfInterest.NAME___ASP;
 			atom = getAtom("CG");
 			if (atom == null) {
 				this.missingAtoms++;
@@ -203,7 +242,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			keyAtoms = keyCAtoms = new Atom[] {atom};
 			break;
 		case GroupOfInterest.CODE_ASN:
-			this.suffix="|"+GroupOfInterest.NAME_ASN;
+			this.suffix="|"+GroupOfInterest.NAME___ASN;
 			atom = getAtom("CG");
 			if (atom == null) {
 				this.missingAtoms++;
@@ -211,7 +250,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			keyAtoms = keyCAtoms = new Atom[] {atom};
 			break;
 		case GroupOfInterest.CODE_CSO:
-			this.suffix="|"+GroupOfInterest.NAME_CSO;
+			this.suffix="|"+GroupOfInterest.NAME___CSO;
 			atom = getAtom("OD");
 			if (atom == null) {
 				this.missingAtoms++;
@@ -229,7 +268,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			}
 			break;
 		case GroupOfInterest.CODE_CYS:
-			this.suffix="|"+GroupOfInterest.NAME_CYS;
+			this.suffix="|"+GroupOfInterest.NAME___CYS;
 			atom = getAtom("SG");
 			if (atom == null) {
 				this.missingAtoms++;
@@ -238,7 +277,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			break;
 		case GroupOfInterest.CODE_SEC:
 		case GroupOfInterest.CODE_SE7:
-			this.suffix="|"+GroupOfInterest.NAME_SEC;
+			this.suffix="|"+GroupOfInterest.NAME___SEC;
 			atom = getAtom("SEG");
 			if (atom == null) {
 				this.missingAtoms++;
@@ -246,7 +285,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			keyAtoms = new Atom[] {atom};
 			break;
 		case GroupOfInterest.CODE_THR:
-			this.suffix = "|"+ GroupOfInterest.NAME_THR;
+			this.suffix = "|"+ GroupOfInterest.NAME___THR;
 			atom = getAtom("OG1");
 			if (atom == null) {
 				this.missingAtoms++;
@@ -254,7 +293,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			keyAtoms = keyOAtoms = new Atom[] {atom};
 			break;
 		case GroupOfInterest.CODE_SER:
-			this.suffix = "|"+ GroupOfInterest.NAME_SER;
+			this.suffix = "|"+ GroupOfInterest.NAME___SER;
 			atom = getAtom("OG");
 			if (atom == null) {
 				this.missingAtoms++;
@@ -262,7 +301,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			keyAtoms = keyOAtoms = new Atom[] {atom};
 			break;
 		case GroupOfInterest.CODE_TYR:
-			this.suffix = "|"+ GroupOfInterest.NAME_TYR;
+			this.suffix = "|"+ GroupOfInterest.NAME___TYR;
 			atom = getAtom("OH");
 			if (atom == null) {
 				this.missingAtoms++;

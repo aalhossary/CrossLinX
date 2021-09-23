@@ -89,97 +89,97 @@ public class ProteinParser implements SettingListener{
 	//source, target, bond type, subtype.
 	//This quadruplet structure is not the best option, but it is a fast one.
 	static final String[] operations = new String[] {
-			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_TYR, ISOPEPTIDE, INCLUDING_TYR,
-			GroupOfInterest.NAME_ARG, GroupOfInterest.NAME_TYR, ISOPEPTIDE, INCLUDING_TYR,
-			GroupOfInterest.NAME_HIS, GroupOfInterest.NAME_TYR, ISOPEPTIDE, INCLUDING_TYR, //Tyr, new, His <-> Tyr (2.2 A)
-			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_GLU, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_ASP, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_GLN, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_ASN, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_ARG, GroupOfInterest.NAME_GLU, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_ARG, GroupOfInterest.NAME_ASP, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_ARG, GroupOfInterest.NAME_GLN, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_ARG, GroupOfInterest.NAME_ASN, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_HIS, GroupOfInterest.NAME_GLU, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_HIS, GroupOfInterest.NAME_ASP, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_HIS, GroupOfInterest.NAME_GLN, ISOPEPTIDE, "",
-			GroupOfInterest.NAME_HIS, GroupOfInterest.NAME_ASN, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___TYR, ISOPEPTIDE, INCLUDING_TYR,
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___TYR, ISOPEPTIDE, INCLUDING_TYR,
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___TYR, ISOPEPTIDE, INCLUDING_TYR, //Tyr, new, His <-> Tyr (2.2 A)
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___GLU, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___ASP, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___GLN, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___ASN, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___GLU, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___ASP, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___GLN, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___ASN, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___GLU, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___ASP, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___GLN, ISOPEPTIDE, "",
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___ASN, ISOPEPTIDE, "",
 			
-			GroupOfInterest.NAME_1ST, GroupOfInterest.NAME_TYR, ISOPEPTIDE, N_AA+INCLUDING_TYR, // TODO review
-			GroupOfInterest.NAME_1ST, GroupOfInterest.NAME_GLU, ISOPEPTIDE, N_AA,
-			GroupOfInterest.NAME_1ST, GroupOfInterest.NAME_ASP, ISOPEPTIDE, N_AA,
-			GroupOfInterest.NAME_1ST, GroupOfInterest.NAME_GLN, ISOPEPTIDE, N_AA,
-			GroupOfInterest.NAME_1ST, GroupOfInterest.NAME_ASN, ISOPEPTIDE, N_AA,
-			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_LST, ISOPEPTIDE, AA_C,
-			GroupOfInterest.NAME_ARG, GroupOfInterest.NAME_LST, ISOPEPTIDE, AA_C,
-			GroupOfInterest.NAME_HIS, GroupOfInterest.NAME_LST, ISOPEPTIDE, AA_C,
-			GroupOfInterest.NAME_1ST, GroupOfInterest.NAME_HET, ISOPEPTIDE, N_HET, //new
-			GroupOfInterest.NAME_HET, GroupOfInterest.NAME_LST, ISOPEPTIDE, HET_C, //new
+			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___TYR, ISOPEPTIDE, N_AA+INCLUDING_TYR, // TODO review
+			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___GLU, ISOPEPTIDE, N_AA,
+			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___ASP, ISOPEPTIDE, N_AA,
+			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___GLN, ISOPEPTIDE, N_AA,
+			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___ASN, ISOPEPTIDE, N_AA,
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___LST, ISOPEPTIDE, AA_C,
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___LST, ISOPEPTIDE, AA_C,
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___LST, ISOPEPTIDE, AA_C,
+			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___HET, ISOPEPTIDE, N_HET, //new
+			GroupOfInterest.NAME___HET, GroupOfInterest.NAME___LST, ISOPEPTIDE, HET_C, //new
 			
-			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_HET, ISOPEPTIDE, AA_HET,
-			GroupOfInterest.NAME_ARG, GroupOfInterest.NAME_HET, ISOPEPTIDE, AA_HET,
-			GroupOfInterest.NAME_HIS, GroupOfInterest.NAME_HET, ISOPEPTIDE, AA_HET,
-			GroupOfInterest.NAME_HET, GroupOfInterest.NAME_GLU, ISOPEPTIDE, HET_AA,
-			GroupOfInterest.NAME_HET, GroupOfInterest.NAME_ASP, ISOPEPTIDE, HET_AA,
-			GroupOfInterest.NAME_HET, GroupOfInterest.NAME_GLN, ISOPEPTIDE, HET_AA,
-			GroupOfInterest.NAME_HET, GroupOfInterest.NAME_ASN, ISOPEPTIDE, HET_AA,
-			GroupOfInterest.NAME_HET, GroupOfInterest.NAME_TYR, ISOPEPTIDE, HET_AA, //new
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___HET, ISOPEPTIDE, AA_HET,
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___HET, ISOPEPTIDE, AA_HET,
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___HET, ISOPEPTIDE, AA_HET,
+			GroupOfInterest.NAME___HET, GroupOfInterest.NAME___GLU, ISOPEPTIDE, HET_AA,
+			GroupOfInterest.NAME___HET, GroupOfInterest.NAME___ASP, ISOPEPTIDE, HET_AA,
+			GroupOfInterest.NAME___HET, GroupOfInterest.NAME___GLN, ISOPEPTIDE, HET_AA,
+			GroupOfInterest.NAME___HET, GroupOfInterest.NAME___ASN, ISOPEPTIDE, HET_AA,
+			GroupOfInterest.NAME___HET, GroupOfInterest.NAME___TYR, ISOPEPTIDE, HET_AA, //new
 			
-			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_CSO, NOS_BOND, "",
-			GroupOfInterest.NAME_ARG, GroupOfInterest.NAME_CSO, NOS_BOND, ARG_CSO,
-			GroupOfInterest.NAME_HIS, GroupOfInterest.NAME_CSO, NOS_BOND, HIS_CSO,
-			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_CYS, NXS_BOND, "",
-			GroupOfInterest.NAME_ARG, GroupOfInterest.NAME_CYS, NXS_BOND, ARG_CYS,
-			GroupOfInterest.NAME_HIS, GroupOfInterest.NAME_CYS, NXS_BOND, HIS_CYS,
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___CSO, NOS_BOND, "",
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___CSO, NOS_BOND, ARG_CSO,
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___CSO, NOS_BOND, HIS_CSO,
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___CYS, NXS_BOND, "",
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___CYS, NXS_BOND, ARG_CYS,
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___CYS, NXS_BOND, HIS_CYS,
 //			GroupOfInterest.NAME_LYS, GroupOfInterest.NAME_SEC, NXS_BOND, "", //We know there should be no results
 			//I ordered ester and Thioester before ether and thioether
 			//Ester: Thr/Ser/Tyr <-> C-Terminous / Glu/Asp/Gln/Asn/Arg (/Gly ?) (2.1 A)
-			GroupOfInterest.NAME_THR, GroupOfInterest.NAME_GLU, ESTER_BOND, "",
-			GroupOfInterest.NAME_THR, GroupOfInterest.NAME_ASP, ESTER_BOND, "",
-			GroupOfInterest.NAME_THR, GroupOfInterest.NAME_GLN, ESTER_BOND, "",
-			GroupOfInterest.NAME_THR, GroupOfInterest.NAME_ASN, ESTER_BOND, "",
-			GroupOfInterest.NAME_THR, GroupOfInterest.NAME_ARG, ESTER_BOND, "",
-			GroupOfInterest.NAME_THR, GroupOfInterest.NAME_LST, ESTER_BOND, TO_C_TERMINUS,
-			GroupOfInterest.NAME_SER, GroupOfInterest.NAME_GLU, ESTER_BOND, "",
-			GroupOfInterest.NAME_SER, GroupOfInterest.NAME_ASP, ESTER_BOND, "",
-			GroupOfInterest.NAME_SER, GroupOfInterest.NAME_GLN, ESTER_BOND, "",
-			GroupOfInterest.NAME_SER, GroupOfInterest.NAME_ASN, ESTER_BOND, "",
-			GroupOfInterest.NAME_SER, GroupOfInterest.NAME_ARG, ESTER_BOND, "",
-			GroupOfInterest.NAME_SER, GroupOfInterest.NAME_LST, ESTER_BOND, TO_C_TERMINUS,
-			GroupOfInterest.NAME_TYR, GroupOfInterest.NAME_GLU, ESTER_BOND, "",
-			GroupOfInterest.NAME_TYR, GroupOfInterest.NAME_ASP, ESTER_BOND, "",
-			GroupOfInterest.NAME_TYR, GroupOfInterest.NAME_GLN, ESTER_BOND, "",
-			GroupOfInterest.NAME_TYR, GroupOfInterest.NAME_ASN, ESTER_BOND, "",
-			GroupOfInterest.NAME_TYR, GroupOfInterest.NAME_ARG, ESTER_BOND, "",
-			GroupOfInterest.NAME_TYR, GroupOfInterest.NAME_LST, ESTER_BOND, TO_C_TERMINUS,
+			GroupOfInterest.NAME___THR, GroupOfInterest.NAME___GLU, ESTER_BOND, "",
+			GroupOfInterest.NAME___THR, GroupOfInterest.NAME___ASP, ESTER_BOND, "",
+			GroupOfInterest.NAME___THR, GroupOfInterest.NAME___GLN, ESTER_BOND, "",
+			GroupOfInterest.NAME___THR, GroupOfInterest.NAME___ASN, ESTER_BOND, "",
+			GroupOfInterest.NAME___THR, GroupOfInterest.NAME___ARG, ESTER_BOND, "",
+			GroupOfInterest.NAME___THR, GroupOfInterest.NAME___LST, ESTER_BOND, TO_C_TERMINUS,
+			GroupOfInterest.NAME___SER, GroupOfInterest.NAME___GLU, ESTER_BOND, "",
+			GroupOfInterest.NAME___SER, GroupOfInterest.NAME___ASP, ESTER_BOND, "",
+			GroupOfInterest.NAME___SER, GroupOfInterest.NAME___GLN, ESTER_BOND, "",
+			GroupOfInterest.NAME___SER, GroupOfInterest.NAME___ASN, ESTER_BOND, "",
+			GroupOfInterest.NAME___SER, GroupOfInterest.NAME___ARG, ESTER_BOND, "",
+			GroupOfInterest.NAME___SER, GroupOfInterest.NAME___LST, ESTER_BOND, TO_C_TERMINUS,
+			GroupOfInterest.NAME___TYR, GroupOfInterest.NAME___GLU, ESTER_BOND, "",
+			GroupOfInterest.NAME___TYR, GroupOfInterest.NAME___ASP, ESTER_BOND, "",
+			GroupOfInterest.NAME___TYR, GroupOfInterest.NAME___GLN, ESTER_BOND, "",
+			GroupOfInterest.NAME___TYR, GroupOfInterest.NAME___ASN, ESTER_BOND, "",
+			GroupOfInterest.NAME___TYR, GroupOfInterest.NAME___ARG, ESTER_BOND, "",
+			GroupOfInterest.NAME___TYR, GroupOfInterest.NAME___LST, ESTER_BOND, TO_C_TERMINUS,
 			//Thioester: Cys <-> C-Terminous / Glu/Asp/Gln/Asn / ((Lys.CA)) (2.3 A)
-			GroupOfInterest.NAME_CYS, GroupOfInterest.NAME_GLU, THIOESTER_BOND, "",
-			GroupOfInterest.NAME_CYS, GroupOfInterest.NAME_ASP, THIOESTER_BOND, "",
-			GroupOfInterest.NAME_CYS, GroupOfInterest.NAME_GLN, THIOESTER_BOND, "",
-			GroupOfInterest.NAME_CYS, GroupOfInterest.NAME_ASN, THIOESTER_BOND, "",
-			GroupOfInterest.NAME_CYS, GroupOfInterest.NAME_ARG, THIOESTER_BOND, "",
-			GroupOfInterest.NAME_CYS, GroupOfInterest.NAME_LST, THIOESTER_BOND, TO_C_TERMINUS,
+			GroupOfInterest.NAME___CYS, GroupOfInterest.NAME___GLU, THIOESTER_BOND, "",
+			GroupOfInterest.NAME___CYS, GroupOfInterest.NAME___ASP, THIOESTER_BOND, "",
+			GroupOfInterest.NAME___CYS, GroupOfInterest.NAME___GLN, THIOESTER_BOND, "",
+			GroupOfInterest.NAME___CYS, GroupOfInterest.NAME___ASN, THIOESTER_BOND, "",
+			GroupOfInterest.NAME___CYS, GroupOfInterest.NAME___ARG, THIOESTER_BOND, "",
+			GroupOfInterest.NAME___CYS, GroupOfInterest.NAME___LST, THIOESTER_BOND, TO_C_TERMINUS,
 			
 			
 			//Ethers: O from the first to C from the second
 			//Ether: Thr/Ser/Tyr <-> Any C ?
-			GroupOfInterest.NAME_THR, GroupOfInterest.NAME_TYR, ETHER_BOND, "",
-			GroupOfInterest.NAME_SER, GroupOfInterest.NAME_TYR, ETHER_BOND, "",
-			GroupOfInterest.NAME_TYR, GroupOfInterest.NAME_TYR, ETHER_BOND, TYR_TYR, //TODO check this
-			GroupOfInterest.NAME_THR, GroupOfInterest.NAME_LST, ETHER_BOND, "",
-			GroupOfInterest.NAME_SER, GroupOfInterest.NAME_LST, ETHER_BOND, "",
-			GroupOfInterest.NAME_TYR, GroupOfInterest.NAME_LST, ETHER_BOND, "",
+			GroupOfInterest.NAME___THR, GroupOfInterest.NAME___TYR, ETHER_BOND, "",
+			GroupOfInterest.NAME___SER, GroupOfInterest.NAME___TYR, ETHER_BOND, "",
+			GroupOfInterest.NAME___TYR, GroupOfInterest.NAME___TYR, ETHER_BOND, TYR_TYR, //TODO check this
+			GroupOfInterest.NAME___THR, GroupOfInterest.NAME___LST, ETHER_BOND, "",
+			GroupOfInterest.NAME___SER, GroupOfInterest.NAME___LST, ETHER_BOND, "",
+			GroupOfInterest.NAME___TYR, GroupOfInterest.NAME___LST, ETHER_BOND, "",
 //			GroupOfInterest.NAME_THR, GroupOfInterest.NAME_HET, ETHER_BOND, "",
 //			GroupOfInterest.NAME_SER, GroupOfInterest.NAME_HET, ETHER_BOND, "",
 //			GroupOfInterest.NAME_TYR, GroupOfInterest.NAME_HET, ETHER_BOND, "",
 			//Thioether (sulfide): Cys <-> any C (incl. Tyr CB/CD1/CD2/CE1/CE2) (2.3 A)
 			//						6nef has Cys <-> HEC (heme) some within cutoff and some unrealisticly far
 			//						6ef8 (same protein) has all of them within range although worse resolution
-			GroupOfInterest.NAME_CYS, GroupOfInterest.NAME_TYR, THIOETHER_BOND, "",
-			GroupOfInterest.NAME_CYS, GroupOfInterest.NAME_LST, THIOETHER_BOND, "",
-			GroupOfInterest.NAME_CYS, GroupOfInterest.NAME_HET, THIOETHER_BOND, "",
-			
+			GroupOfInterest.NAME___CYS, GroupOfInterest.NAME___TYR, THIOETHER_BOND, "",
+			GroupOfInterest.NAME___CYS, GroupOfInterest.NAME___LST, THIOETHER_BOND, "",
+			GroupOfInterest.NAME___CYS, GroupOfInterest.NAME___HET, THIOETHER_BOND, "",
 			//DAminoAcids 5nf0 has Thioester with Dcy.SG
+			
 	};
 
 	public void recalculateValues(){
@@ -265,7 +265,7 @@ public class ProteinParser implements SettingListener{
 	public static void main (String [] args) throws IOException {
 		InputStream docStream = ProteinParser.class.getResourceAsStream("/doc.txt");
 		Docopt docopt = new Docopt(docStream);
-		Map<String, Object> options = docopt.withVersion("0.1.0").parse(args);
+		Map<String, Object> options = docopt.withVersion("0.1.1").parse(args);
 		
 //		Set<Entry<String,Object>> entrySet = options.entrySet();
 //		for (Entry<String, Object> entry : entrySet) {
@@ -918,7 +918,7 @@ public class ProteinParser implements SettingListener{
 			String description = site.getDescription();
 			allStringsToScan.add(description);
 		}
-		List<String> keywords = structure.getKeywords();
+		List<String> keywords = structure.getPDBHeader().getKeywords();
 		for (String keyword : keywords) {
 			allStringsToScan.add(keyword);
 		}
@@ -1087,23 +1087,25 @@ public class ProteinParser implements SettingListener{
 			if ( group instanceof AminoAcid) {
 				this.foundAminoAcids++;
 				currentAA = null;
-
+				//TODO refactor this if statement and the AminoAcidOfInterest 
+				// constructor to make it perform only one check inside the constructor
 				String aaPdbName = group.getPDBName();
-				if (GroupOfInterest.NAME_LYS.equals(aaPdbName)||
-						GroupOfInterest.NAME_ARG.equals(aaPdbName)||
-						GroupOfInterest.NAME_HIS.equals(aaPdbName)||
-						GroupOfInterest.NAME_LYS.equals(aaPdbName)||
-						GroupOfInterest.NAME_GLU.equals(aaPdbName)||
-						GroupOfInterest.NAME_GLN.equals(aaPdbName)||
-						GroupOfInterest.NAME_ASP.equals(aaPdbName)||
-						GroupOfInterest.NAME_ASN.equals(aaPdbName)||
-						GroupOfInterest.NAME_CYS.equals(aaPdbName)||
-						GroupOfInterest.NAME_CSO.equals(aaPdbName)||
-						GroupOfInterest.NAME_SEC.equals(aaPdbName)||
-						GroupOfInterest.NAME_SE7.equals(aaPdbName)||
-						GroupOfInterest.NAME_THR.equals(aaPdbName)||
-						GroupOfInterest.NAME_SER.equals(aaPdbName)||
-						GroupOfInterest.NAME_TYR.equals(aaPdbName)
+				if (
+						GroupOfInterest.NAME___LYS.equals(aaPdbName)||
+						GroupOfInterest.NAME___ARG.equals(aaPdbName)||
+						GroupOfInterest.NAME___HIS.equals(aaPdbName)||
+						GroupOfInterest.NAME___LYS.equals(aaPdbName)||
+						GroupOfInterest.NAME___GLU.equals(aaPdbName)||
+						GroupOfInterest.NAME___GLN.equals(aaPdbName)||
+						GroupOfInterest.NAME___ASP.equals(aaPdbName)||
+						GroupOfInterest.NAME___ASN.equals(aaPdbName)||
+						GroupOfInterest.NAME___CYS.equals(aaPdbName)||
+						GroupOfInterest.NAME___CSO.equals(aaPdbName)||
+						GroupOfInterest.NAME___SEC.equals(aaPdbName)||
+						GroupOfInterest.NAME___SE7.equals(aaPdbName)||
+						GroupOfInterest.NAME___THR.equals(aaPdbName)||
+						GroupOfInterest.NAME___SER.equals(aaPdbName)||
+						GroupOfInterest.NAME___TYR.equals(aaPdbName)
 						) {
 					try {
 						currentAA = new AminoAcidOfInterest((AminoAcid) group);
@@ -1116,7 +1118,7 @@ public class ProteinParser implements SettingListener{
 				
 				if (currentResidueNumber != prevResidueSeqNum + 1) {  //if N-Terminus
 					AminoAcidOfInterest first = (currentAA != null) ? currentAA : new AminoAcidOfInterest((AminoAcid) group);
-					first.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME_1ST);
+					first.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME___1ST);
 				}
 
 //				try {
@@ -1136,9 +1138,31 @@ public class ProteinParser implements SettingListener{
 ////					this.missingAtoms+=aa.getMissingAtoms();
 //				}
 			}else if (group instanceof HetatomImpl) {
-				this.foundHetGroups++;
-				HetatomImpl hetatomImpl = (HetatomImpl) group;
-				HetGroupOfInterest.newHetGroupOfInterest(hetatomImpl);
+				String aaPdbName = group.getPDBName();
+				if(  // D Amino acids
+						GroupOfInterest.NAME_D_LYS.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_ARG.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_HIS.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_LYS.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_GLU.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_GLN.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_ASP.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_ASN.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_CYS.equals(aaPdbName)||
+//						GroupOfInterest.NAME_D_CSO.equals(aaPdbName)||
+//						GroupOfInterest.NAME_D_SEC.equals(aaPdbName)||
+//						GroupOfInterest.NAME_D_SE7.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_THR.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_SER.equals(aaPdbName)||
+						GroupOfInterest.NAME_D_TYR.equals(aaPdbName)
+						) {
+					currentAA = new AminoAcidOfInterest(group);
+					lastAACached = true;
+				}else {
+					this.foundHetGroups++;
+					HetatomImpl hetatomImpl = (HetatomImpl) group;
+					HetGroupOfInterest.newHetGroupOfInterest(hetatomImpl);
+				}
 			}else {
 				//Don know yet
 			}
@@ -1147,7 +1171,7 @@ public class ProteinParser implements SettingListener{
 		}
 		if(prevGroup != null && ! lastAACached && prevGroup instanceof AminoAcid) {
 			AminoAcidOfInterest last = (prevGroup == currentAA) ? currentAA : new AminoAcidOfInterest((AminoAcid) prevGroup);
-			last.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME_LST);
+			last.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME___LST);
 		}
 
 		this.chainsParsed++;
