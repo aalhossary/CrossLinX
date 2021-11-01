@@ -49,6 +49,9 @@ import javax.swing.text.BadLocationException;
 
 import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
+import org.biojava.nbio.structure.align.util.UserConfiguration;
+import org.biojava.nbio.structure.io.CifFileReader;
+import org.biojava.nbio.structure.io.LocalPDBDirectory;
 import org.biojava.nbio.structure.io.LocalPDBDirectory.FetchBehavior;
 
 import amralhossary.bonds.SettingsManager.SettingListener;
@@ -672,15 +675,20 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			foundInteractionsList.addListSelectionListener(new ListSelectionListener() {
 				public void valueChanged(ListSelectionEvent e) {
 					try {
-						PDBFileReader pdbFileReader = new PDBFileReader();
+						LocalPDBDirectory fileReader = null;
+						if(UserConfiguration.PDB_FORMAT.equals(settingsManager.getFileFormat())) {
+							fileReader = new PDBFileReader(); 
+						} else if(UserConfiguration.MMCIF_FORMAT.equals(settingsManager.getFileFormat())) {
+							fileReader = new CifFileReader(settingsManager.getPdbFilePath());
+						}
 //						pdbFileReader.setPdbDirectorySplit(settingsManager.getUserConfiguration().isSplit());
-						pdbFileReader.setPath(settingsManager.getPdbFilePath());
-						pdbFileReader.setFetchBehavior(FetchBehavior.LOCAL_ONLY);
+						fileReader.setPath(settingsManager.getPdbFilePath());
+						fileReader.setFetchBehavior(FetchBehavior.LOCAL_ONLY);
 						JmolPanel jmolPanel = getJmolPanel();
 						String token = (String) foundInteractionsList.getSelectedValue();
 						if (token != null) {
 							out.setEnabled(false);
-							jmolPanel.setStructure((pdbFileReader.getStructureById(token)));
+							jmolPanel.setStructure((fileReader.getStructureById(token)));
 							out.setEnabled(true);
 							String buffer = ResultManager.retrieveJMolScriptString(token);
 //							System.out.println("String To Evaluate is: "+buffer);

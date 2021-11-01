@@ -74,7 +74,8 @@ public class SettingsManager{
 				this.workingFolder = userConfiguration.getPdbFilePath()+File.separator+"out";
 			}
 			
-			this.setFileFormat(readStringProperty(properties, FILEFORMAT_KEY, UserConfiguration.PDB_FORMAT));
+//			this.setFileFormat(readStringProperty(properties, FILEFORMAT_KEY, UserConfiguration.PDB_FORMAT));
+			this.setFileFormat(readStringProperty(properties, FILEFORMAT_KEY, UserConfiguration.MMCIF_FORMAT));
 			this.setAutoFetch(readBooleanProperty(properties, AUTOFETCH_KEY, this.userConfiguration.getFetchBehavior() != FetchBehavior.LOCAL_ONLY));
 			this.setShowWhileProcessing(readBooleanProperty(properties, SHOW_WHILE_PROCESSING_KEY, true));
 			this.setDomainEnabled(readBooleanProperty(properties, DOMAIN_ENABLED_KEY, true));
@@ -118,6 +119,7 @@ public class SettingsManager{
 			properties.clear();
 			properties.setProperty(PDB_FILES_FOLDER_KEY, getPdbFilePath());
 			properties.setProperty(WORKING_FOLDER_KEY, workingFolder);
+			properties.setProperty(FILEFORMAT_KEY, getFileFormat());
 //			properties.setProperty(AUTOFETCH_KEY, String.valueOf(isAutofetch()));
 			properties.setProperty(SHOW_WHILE_PROCESSING_KEY, String.valueOf(isShowWhileProcessing()));
 			properties.setProperty(DOMAIN_ENABLED_KEY, String.valueOf(isDomainEnabled()));

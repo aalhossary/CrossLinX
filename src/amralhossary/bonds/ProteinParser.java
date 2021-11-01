@@ -367,6 +367,7 @@ public class ProteinParser implements SettingListener{
 	
 	public void startParsing(Scanner scanner) {
 		initialize();
+		System.out.println("File Format: "+ settingsManager.getFileFormat());
 		fixStartTime();
 		parseStructureNamesList(scanner);
 		if (gui != null) {
@@ -717,7 +718,10 @@ public class ProteinParser implements SettingListener{
 				this.out.println(stringForBrendan.toString());
 
 				//export
-				ResultManager.exportFileToScript(token.substring(0, 4), settingsManager.getWorkingFolder()+System.getProperty("file.separator")+"EXPORTED", specificCollectionScriptString);
+				int endIdx = token.length(), dotIdx = token.lastIndexOf('.');
+				if(dotIdx > 0)
+					endIdx = dotIdx;
+				ResultManager.exportFileToScript(token.substring(0, endIdx), settingsManager.getWorkingFolder()+System.getProperty("file.separator")+"EXPORTED", specificCollectionScriptString);
 			}
 			return true;
 		}
@@ -857,7 +861,7 @@ public class ProteinParser implements SettingListener{
 		Group residue1 = ((AtomImpl) atom1).getGroup();
 		Group residue2 = ((AtomImpl) atom2).getGroup();
 		Structure structure = residue1.getChain().getStructure();
-		StringBuilder str = new StringBuilder(structure.getPDBCode()).append('\t');
+		StringBuilder str = new StringBuilder(structure.getPdbId().getId()).append('\t');
 		
 		str.append(residue1.getPDBName()).append('\t')
 		.append(residue1.getChain().getName()).append('\t') // I am reporting the chain authId (the one written in PDB) now.

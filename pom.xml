@@ -3,7 +3,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>bonds</artifactId>
-	<version>0.1.1</version>
+	<version>0.1.2</version>
 	<repositories>
 		<repository>
 			<id>local-maven-repo</id>
@@ -47,12 +47,12 @@
 		<dependency>
 			<groupId>org.biojava</groupId>
 			<artifactId>biojava-structure</artifactId>
-			<version>6.0.0-SNAPSHOT</version>
+			<version>6.0.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.biojava</groupId>
 			<artifactId>biojava-structure-gui</artifactId>
-			<version>6.0.0-alpha3</version>
+			<version>6.0.0</version>
 		</dependency>
 		<!-- <dependency> <groupId>net.sourceforge.jmol</groupId> <artifactId>jmol</artifactId> 
 			<version>14.31.10</version> </dependency> -->
@@ -64,8 +64,8 @@
 		</dependency>
 	</dependencies>
 	<groupId>hossary</groupId>
-	<name>Rare Bonds Explorer</name>
-	<description>Rare Bonds in Protein structures finder</description>
+	<name>Cross Links Explorer</name>
+	<description>Cross Links in Protein structures Explorer</description>
 	<scm>
 		<url>https://github.com/aalhossary/bonds.git</url>
 		<developerConnection>Amr ALHOSSARY</developerConnection>

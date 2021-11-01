@@ -14,11 +14,14 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.vecmath.Point3d;
 
 import org.biojava.nbio.structure.AminoAcid;
 import org.biojava.nbio.structure.Atom;
+import org.biojava.nbio.structure.align.util.UserConfiguration;
 import org.jmol.api.JmolViewer;
 
 /** //TODO remember to declare files failed to parse in results log file and retrieving them when parsing it 
@@ -227,8 +230,17 @@ public class ResultManager {
 
 	public static File prepareFilesList(boolean temp) {
 		System.out.println("Preparing Files List");
+		Pattern fileNamePattern = Pattern.compile("(pdb)?(([0-9a-z]{4})?([1-9]\\p{Alnum}{3}))((\\.ent\\.gz)|(\\.cif\\.gz))", Pattern.CASE_INSENSITIVE);
+//		Pattern fileNamePattern = Pattern.compile("(([0-9a-z]{4})?([1-9]\\p{Alnum}{3}))", Pattern.CASE_INSENSITIVE);
 		try {
-			File pdbFolder= new File(settingsManager.getPdbFilePath(), "data/structures/divided/pdb");
+			String filesPath = null;
+			if(UserConfiguration.PDB_FORMAT.equals(settingsManager.getFileFormat()))
+				filesPath = "data/structures/divided/pdb";
+			else if (UserConfiguration.MMCIF_FORMAT.equals(settingsManager.getFileFormat()))
+				filesPath = "data/structures/divided/mmCIF";
+			else
+				throw new IllegalArgumentException("Unknown File Format ["+ settingsManager.getFileFormat() + "]");
+			File pdbFolder= new File(settingsManager.getPdbFilePath(), filesPath);			
 			System.out.println("creating list for: "+pdbFolder.getAbsolutePath());
 			File[] potentialFolders = pdbFolder.listFiles(new FilenameFilter() {
 				public boolean accept(File dir, String name) {
@@ -244,8 +256,9 @@ public class ResultManager {
 				list = new File(settingsManager.getWorkingFolder(), "FilesList.txt");
 			}
 			FilenameFilter filter = new FilenameFilter() {
+				@Override
 				public boolean accept(File dir, String name) {
-					return name.matches("pdb.+"+dir.getName()+"..+");
+					return fileNamePattern.matcher(name).matches();
 				}
 			};
 			PrintStream out = new PrintStream(list);
@@ -258,11 +271,15 @@ public class ResultManager {
 						System.out.println("##Folder :"+potentialFolder.getName());
 						Arrays.sort(potentialFileNames);
 						for (int j = 0; j < potentialFileNames.length; j++) {
-							out.print(potentialFileNames[j].substring(3, 7));
-							if (j < potentialFileNames.length-1) {
-								out.print(';');
-							}else {
-								out.println();
+							String potentialFileName = potentialFileNames[j];
+							Matcher matcher = fileNamePattern.matcher(potentialFileName);
+							if(matcher.find()) {
+								out.print(matcher.group(2));
+								if (j < potentialFileNames.length-1) {
+									out.print(';');
+								}else {
+									out.println();
+								}
 							}
 						}
 					}
@@ -376,7 +393,20 @@ public class ResultManager {
 				FileWriter fw = new FileWriter (new File(exportFolder, pdbId+".spt"),false);
 				PrintWriter file = new PrintWriter(fw);
 
-				String command = "load \"" + settingsManager.getPdbFilePath()+File.separatorChar+ pdbId.substring(1, 3)+ File.separatorChar+ "pdb"+pdbId+".ent.gz\";";
+				int beginIndex = pdbId.length() - 3;
+				String middle = pdbId.substring(beginIndex, beginIndex + 2);
+				String fileName;
+				switch(settingsManager.getFileFormat()) {
+					case UserConfiguration.PDB_FORMAT:
+						fileName = "pdb"+pdbId+".ent.gz";
+						break;
+					case UserConfiguration.MMCIF_FORMAT:
+						fileName = pdbId+".cif.gz";
+						break;
+					default:
+						throw new IllegalArgumentException("Unknown file format ["+settingsManager.getFileFormat()+"]");
+				}
+				String command = "load \"" + settingsManager.getPdbFilePath() + File.separatorChar + middle + File.separatorChar + fileName + "\";";
 				file.println(command);
 				file.println(GENERAL_SELECTION_SCRIPT);
 				String[] strings = additionalScript.split(System.getProperty("line.separator"));
