@@ -58,7 +58,7 @@ public class ProteinParser implements SettingListener{
 //	private static final String ATOMS_NOT_FOUND = "Atoms NOT Found";
 	private static final String AMINO_ACIDS_FAILED = "AminoAcids Failed";
 	private static final String TOTAL_STRUCTURES_WITH_INTERACTIONS = "Total structures with interactions";
-	private static final String ISOPEPTIDE_BONDS = "IspPeptide Bonds";
+	private static final String ISOPEPTIDE_BONDS = "IsoPeptide Bonds";
 	private static final String NOS_Bonds        = "NOS Bonds";
 	private static final String NXS_Bonds        = "NxS Bonds (not known previously)";
 	private static final String SUCCESSFULLY_PARSED_STRUCTURE_FILES = "successfully parsed structure files";
@@ -224,7 +224,7 @@ public class ProteinParser implements SettingListener{
 	private long startTime;
 	
 	static SettingsManager settingsManager = null; 
-	AtomCache atomCache = new AtomCache(settingsManager.getUserConfiguration());
+	AtomCache atomCache = new AtomCache(SettingsManager.getSettingsManager().getUserConfiguration());
 
 //	{
 //		atomCache.setUseMmCif(false);
@@ -339,6 +339,7 @@ public class ProteinParser implements SettingListener{
 	
 	public ProteinParser(ProteinParsingGUI gui){
 		this.gui=gui;
+		settingsManager = SettingsManager.getSettingsManager();
 		settingsManager.registerListener(this);
 		refreshSettings();
 	}
@@ -385,13 +386,14 @@ public class ProteinParser implements SettingListener{
 		File positiveResultsFile=null;
 		File tsvPositiveResultsFile=null;
 		try {
-			positiveResultsFile = new File(settingsManager.getWorkingFolder(), "PositiveResults.txt");
+			String workingFolder = settingsManager.getWorkingFolder();
+			positiveResultsFile = new File(workingFolder, "PositiveResults.txt");
 			if (! positiveResultsFile.exists()) {
 				positiveResultsFile.createNewFile();
 			}
 			this.out= new PrintStream(positiveResultsFile);
 
-			tsvPositiveResultsFile = new File(settingsManager.getWorkingFolder(), "PositiveResults.tsv");
+			tsvPositiveResultsFile = new File(workingFolder, "PositiveResults.tsv");
 			if (! tsvPositiveResultsFile.exists()) {
 				tsvPositiveResultsFile.createNewFile();
 			}
@@ -405,7 +407,7 @@ public class ProteinParser implements SettingListener{
 
 
 			File log=null;
-			log = new File(settingsManager.getWorkingFolder(), "log.txt");
+			log = new File(workingFolder, "log.txt");
 			if (! log.exists()) {
 				log.createNewFile();
 			}

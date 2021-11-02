@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Properties;
 
+import org.biojava.nbio.core.util.FileDownloadUtils;
 import org.biojava.nbio.structure.align.util.UserConfiguration;
 import org.biojava.nbio.structure.io.LocalPDBDirectory.FetchBehavior;
 
@@ -29,7 +30,7 @@ public class SettingsManager{
 	private static final String FILEFORMAT_KEY = "fileFormat";
 	private static final String SHOW_WHILE_PROCESSING_KEY = "showWhileProcessing";
 	
-	private static final String PROPERTIES_FILENAME = /*System.getProperty("user.dir")+*/ "settings.ini";
+	private static final String PROPERTIES_FILENAME = /*System.getProperty("user.dir")+*/ "CrossLinX_settings.ini";
 	public static final boolean debugging = false;
 
 
@@ -58,8 +59,9 @@ public class SettingsManager{
 			properties.load(res);
 			String pdbFilePath = readStringProperty(properties, PDB_FILES_FOLDER_KEY, null);
 			if (pdbFilePath != null) {
+				pdbFilePath = FileDownloadUtils.expandUserHome(pdbFilePath);
 //				userConfiguration.setPdbFilePath(pdbFilePath);
-				if (pdbFilePath.endsWith(File.separator)) {
+				if (pdbFilePath.endsWith("/") || pdbFilePath.endsWith(File.separator)) {
 					pdbFilePath = pdbFilePath.substring(0, pdbFilePath.length()-1);
 				}
 				setPdbFilePath(pdbFilePath);
@@ -69,9 +71,10 @@ public class SettingsManager{
 			}
 			String workingFilePath = readStringProperty(properties, WORKING_FOLDER_KEY, null);
 			if (workingFilePath != null) {
+				workingFilePath = FileDownloadUtils.expandUserHome(workingFilePath);
 				this.workingFolder = workingFilePath;
 			} else {
-				this.workingFolder = userConfiguration.getPdbFilePath()+File.separator+"out";
+				this.workingFolder = new File(userConfiguration.getPdbFilePath(), "out").getPath();
 			}
 			
 //			this.setFileFormat(readStringProperty(properties, FILEFORMAT_KEY, UserConfiguration.PDB_FORMAT));
@@ -120,7 +123,7 @@ public class SettingsManager{
 			properties.setProperty(PDB_FILES_FOLDER_KEY, getPdbFilePath());
 			properties.setProperty(WORKING_FOLDER_KEY, workingFolder);
 			properties.setProperty(FILEFORMAT_KEY, getFileFormat());
-//			properties.setProperty(AUTOFETCH_KEY, String.valueOf(isAutofetch()));
+			properties.setProperty(AUTOFETCH_KEY, String.valueOf(isAutoFetch()));
 			properties.setProperty(SHOW_WHILE_PROCESSING_KEY, String.valueOf(isShowWhileProcessing()));
 			properties.setProperty(DOMAIN_ENABLED_KEY, String.valueOf(isDomainEnabled()));
 
@@ -163,6 +166,7 @@ public class SettingsManager{
 	}
 
 	/**
+	 * Note that this method creates a new {@link UserConfiguration} object.
 	 * @param pdbFilePath the pdbFilePath to set
 	 * @throws IOException 
 	 */
@@ -171,9 +175,14 @@ public class SettingsManager{
 		if (temp.exists() || temp.mkdirs()) {
 			//must be done before creating the userConfiguration object
 			System.setProperty(UserConfiguration.PDB_DIR, pdbFolder);
-			
-			this.userConfiguration = new UserConfiguration();
-			this.userConfiguration.setPdbFilePath(pdbFolder);
+			if(this.userConfiguration == null) {
+				//Take it from the system property PDB_DIR
+				this.userConfiguration = new UserConfiguration();
+				// No need to set it explicitly as it was set in the system property before userConfiguration was created. 
+//				this.userConfiguration.setPdbFilePath(pdbFolder);
+			}else {
+				this.userConfiguration.setPdbFilePath(pdbFolder);
+			}
 		}else {
 			throw new IOException("Folder ["+pdbFolder+"]  NOT found & couldn't be created !");
 		}

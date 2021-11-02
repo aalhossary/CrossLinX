@@ -9,6 +9,7 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
 import java.io.IOException;
 import java.util.Enumeration;
 
@@ -192,6 +193,7 @@ public class PreferencesDialogue extends JDialog {
 			btnOkButton.addActionListener(new ActionListener() {
 				public void actionPerformed(ActionEvent e) {
 					try {
+						//MUST be the FIRST setting to be saved, because it creates a NEW UserConfiguration object
 						settingsManager.setPdbFilePath(pdbFilesDirectoryTextField.getText());
 						settingsManager.setWorkingFolder(workingFolderTextField.getText());
 						String fileFormat = null;
@@ -210,7 +212,7 @@ public class PreferencesDialogue extends JDialog {
 						settingsManager.saveSettings(false);
 						dispose();
 					} catch (IOException e1) {
-						JOptionPane.showMessageDialog(PreferencesDialogue.this, e1.getMessage(), "can't satsfy request", JOptionPane.ERROR_MESSAGE);
+						JOptionPane.showMessageDialog(PreferencesDialogue.this, e1.getMessage(), "Can't satisfy request", JOptionPane.ERROR_MESSAGE);
 						e1.printStackTrace();
 					}
 				}
@@ -235,7 +237,10 @@ public class PreferencesDialogue extends JDialog {
 		if (pdbFilesDirectoryTextField == null) {
 			pdbFilesDirectoryTextField = new JTextField();
 			pdbFilesDirectoryTextField.setName("pdbFilesDirectoryTextField");
-			pdbFilesDirectoryTextField.setText(settingsManager.getPdbFilePath());
+			String pdbFilePath = settingsManager.getPdbFilePath();
+			if(pdbFilePath.endsWith("/") || pdbFilePath.endsWith(File.separator))
+				pdbFilePath = pdbFilePath.substring(0, pdbFilePath.length() - 1);
+			pdbFilesDirectoryTextField.setText(pdbFilePath);
 			pdbFilesDirectoryTextField.setColumns(30);
 		}
 		return pdbFilesDirectoryTextField;
@@ -265,7 +270,10 @@ public class PreferencesDialogue extends JDialog {
 		if (workingFolderTextField == null) {
 			workingFolderTextField = new JTextField();
 			workingFolderTextField.setColumns(30);
-			workingFolderTextField.setText(settingsManager.getWorkingFolder());
+			String workfolderPath = settingsManager.getWorkingFolder();
+			if(workfolderPath.endsWith("/") || workfolderPath.endsWith(File.separator))
+				workfolderPath = workfolderPath.substring(0, workfolderPath.length() - 1);
+			workingFolderTextField.setText(workfolderPath);
 			workingFolderTextField.setName("workingFolderTextField");
 		}
 		return workingFolderTextField;
@@ -308,7 +316,7 @@ public class PreferencesDialogue extends JDialog {
 	private JCheckBox getAutofetchCheckbox() {
 		if (autofetchCheckbox == null) {
 			autofetchCheckbox = new JCheckBox("Autofetch Files");
-			autofetchCheckbox.setSelected(false);
+			autofetchCheckbox.setSelected(settingsManager.isAutoFetch());
 			autofetchCheckbox.setName("autofetchCheckbox");
 		}
 		return autofetchCheckbox;
