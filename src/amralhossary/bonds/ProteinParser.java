@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.StringTokenizer;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RecursiveAction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -85,7 +87,48 @@ public class ProteinParser implements SettingListener{
 	static final String THIOESTER_BOND	= "ThioEster bond";
 	static final String TO_C_TERMINUS	= "To C-Terminus";
 	static final String INCLUDING_TYR 	= "Including Tyr";
+
 	
+	
+	public class ExploreTask extends RecursiveAction{
+		private static final long serialVersionUID = 1L;
+		private static final int CHUNK_SIZE = 5;
+		List<String> ids;
+		int startInclusive;
+		int endExclusive;
+
+		public ExploreTask(List<String> ids, int startInclusive, int endExclusive) {
+			this.ids = ids;
+			this.startInclusive = startInclusive;
+			this.endExclusive = endExclusive;
+		}
+
+		public ExploreTask(List<String> ids) {
+			this(ids, 0, ids.size());
+		}
+
+		@Override
+		protected void compute() {
+			if (endExclusive - startInclusive <= CHUNK_SIZE) {
+				Hashtable<String, ArrayList<GroupOfInterest>> cubes = new Hashtable<String, ArrayList<GroupOfInterest>>();
+				StringBuilder logStringBuilder = new StringBuilder();
+				for (int i = startInclusive; i < endExclusive; i++) {
+					cubes.clear();
+					logStringBuilder.setLength(0);
+					String id = ids.get(i);
+					parseStructure(id, cubes, logStringBuilder);
+					System.out.println(logStringBuilder.toString());
+				}
+				System.out.println(String.format("Parsed entries from %d to %d.", startInclusive+1, endExclusive));
+			} else {
+			    int split = (endExclusive - startInclusive) / 2;
+				invokeAll(new ExploreTask(ids, startInclusive, startInclusive + split),
+			              new ExploreTask(ids, startInclusive + split, endExclusive));
+			}
+		}
+		
+	}
+
 	//source, target, bond type, subtype.
 	//This quadruplet structure is not the best option, but it is a fast one.
 	static final String[] operations = new String[] {
@@ -217,8 +260,6 @@ public class ProteinParser implements SettingListener{
 	private long NOSBonds;
 	private long NxSBonds;
 	
-	static Hashtable<String, ArrayList<GroupOfInterest>> cubes = new Hashtable<String, ArrayList<GroupOfInterest>>();
-	
 //	private long missingAtoms;//TODO complete it
 
 	private long startTime;
@@ -259,7 +300,7 @@ public class ProteinParser implements SettingListener{
 		this.NOSBonds = 0;
 		this.NxSBonds = 0;
 		
-		cubes.clear();
+//		cubes.clear();
 	}
 	
 	public static void main (String [] args) throws IOException {
@@ -416,6 +457,7 @@ public class ProteinParser implements SettingListener{
 			System.err.println("couldn't create file ["+positiveResultsFile.getAbsolutePath()+"] for output");
 			e.printStackTrace();
 		}
+		List<String> allPdbIds = new ArrayList<String>(20000);
 		while (scanner.hasNextLine() && moreWork) {
 			String line = scanner.nextLine();
 			if (line.startsWith("##")) {
@@ -424,10 +466,16 @@ public class ProteinParser implements SettingListener{
 				StringTokenizer tokenizer = new StringTokenizer(line, ";", false);
 				while (tokenizer.hasMoreTokens() && moreWork) {
 					String token = tokenizer.nextToken().trim();
-					parseStructure(token);
+					allPdbIds.add(token);
+//					parseStructure(token);
 				}
 			}
 		}
+		System.out.println("Total number of structures = "+ allPdbIds.size());
+		ForkJoinPool forkJoinPool = ForkJoinPool.commonPool();
+		System.out.println("Parallelism = "+ ForkJoinPool.getCommonPoolParallelism());
+		forkJoinPool.invoke(new ExploreTask(allPdbIds));
+		System.out.println("after calling parallel rinning");
 	}
 	public void parseResults(Scanner scanner) {
 //		final String startOfStructurePrefix = ResultManager.START_OF_STRUCTURE_PREFIX;
@@ -690,11 +738,11 @@ public class ProteinParser implements SettingListener{
 	 * @see #foundInteractions
 	 * @param token
 	 */
-	public boolean parseStructure(String token) {
-		boolean chainsInStructureParsedSuccessfully = parseChainsInStructure(token);
+	public boolean parseStructure(String token, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
+		boolean chainsInStructureParsedSuccessfully = parseChainsInStructure(token, cubes, logStringBuilder);
 		if (chainsInStructureParsedSuccessfully) {
 			Hashtable<String, String> scriptCollectionBuffer = new Hashtable<String, String>();
-			Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> foundInteractions = findInteractionsInCubes(scriptCollectionBuffer);
+			Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> foundInteractions = findInteractionsInCubes(scriptCollectionBuffer, cubes, logStringBuilder);
 
 			Collection<String> encodedScripts = scriptCollectionBuffer.values();
 			StringBuilder builder= new StringBuilder();
@@ -713,7 +761,7 @@ public class ProteinParser implements SettingListener{
 				
 				String listofConnectionsAsString = ResultManager.persistInteractionsHashTable(token,specificCollectionScriptString, foundInteractions);
 //						ResultManager.createListofConnectionsAsString(foundInteractions);
-				System.out.println(listofConnectionsAsString);
+				logStringBuilder.append(listofConnectionsAsString).append('\n');
 
 				StringBuilder stringForBrendan = new StringBuilder(ResultManager.START_OF_STRUCTURE_PREFIX).append(token).append(System.getProperty("line.separator"));
 				stringForBrendan.append(listofConnectionsAsString);
@@ -723,7 +771,7 @@ public class ProteinParser implements SettingListener{
 				int endIdx = token.length(), dotIdx = token.lastIndexOf('.');
 				if(dotIdx > 0)
 					endIdx = dotIdx;
-				ResultManager.exportFileToScript(token.substring(0, endIdx), settingsManager.getWorkingFolder()+System.getProperty("file.separator")+"EXPORTED", specificCollectionScriptString);
+				ResultManager.exportFileToScript(token.substring(0, endIdx), new File(settingsManager.getWorkingFolder(), "EXPORTED").getPath(), specificCollectionScriptString);
 			}
 			return true;
 		}
@@ -731,67 +779,70 @@ public class ProteinParser implements SettingListener{
 	}
 
 
-	boolean parseChainsInStructure(String token) {
+	boolean parseChainsInStructure(String token, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
 		this.attemptedPDBFiles++;
 		boolean structureParsedSuccessfully = true;
 		try {
 			
 			String structureName = token.substring(0, 4);
 			String extension = token.substring(4);
-			System.out.println();
-			System.out.println("Starting to parse "+token + ": " + structureName+"\t"+extension);
+			logStringBuilder.append('\n');
+			logStringBuilder.append("Starting to parse ").append(token).append(": ").append(structureName).append("\t").append(extension).append('\n');
 			Structure currentStructure = atomCache.getStructure(structureName);
 			
 			if (gui != null) {
 				gui.structureLoaded(currentStructure);
 			}
 			this.successfullyParsedStructures++;
-			Hashtable<String, ArrayList<GroupOfInterest>> cubes = ProteinParser.cubes;
+//			Hashtable<String, ArrayList<GroupOfInterest>> cubes = ProteinParser.cubes;
 			cubes.clear();
 			
 			List<Chain> chains = currentStructure.getChains(); //TODO I get all chains of the FIRST modell. Consider getting all models and updating outputted identifiers
 			if (chains==null || chains.isEmpty()) {
 				this.emptyFiles++;
-				System.out.println("Unexpected error: NO chains are found AT ALL in the file "+structureName);
+				logStringBuilder.append("Unexpected error: NO chains are found AT ALL in the file ").append(structureName).append('\n');
 				return false;
 			}
 			boolean chainFound=false;
 			if (extension== null || extension.equals("")) {
 				for (Chain chain : chains) {
-					parseChain(chain);
+					parseChain(chain, cubes, logStringBuilder);
 				}
 				chainFound=true;
 			} else{
 				for (Chain chain : chains) {
 					if (extension.equalsIgnoreCase(chain.getName())) {
-						parseChain(chain);
+						parseChain(chain, cubes, logStringBuilder);
 						chainFound=true;
 					}else {
-						System.out.println("skipped chain "+chain.getName());
+						logStringBuilder.append("skipped chain ").append(chain.getName()).append('\n');
 						this.chainsSkipped++;
 					}
 				}
 			}
 			if(! chainFound){
-				System.out.println("Unexpected error: chain ID "+extension+" NOT FOUND in file "+token);
+				logStringBuilder.append("Unexpected error: chain ID ").append(extension).append(" NOT FOUND in file ").append(token).append('\n');
 				this.chainsNotFound++;
 			}
 		} catch (IOException e) {
-			System.out.println("NOT FOUND or Failed to parse");
+			logStringBuilder.append("NOT FOUND or Failed to parse").append('\n');
 			this.failedToParseStructure++;
 			structureParsedSuccessfully=false;
 		} catch (StructureException e) {
-			System.out.println("Failed to parse");
+			logStringBuilder.append("Failed to parse").append('\n');
 			this.failedToParseStructure++;
 			structureParsedSuccessfully=false;
 		}
 		return structureParsedSuccessfully;
 	}
 
-	Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> findInteractionsInCubes(Hashtable<String, String> scriptCollectionBuffer) {
+	Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> findInteractionsInCubes(
+			Hashtable<String, String> scriptCollectionBuffer, 
+			Hashtable<String, ArrayList<GroupOfInterest>> cubes,
+			StringBuilder logStringBuilder) {
 		
 		Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> foundInteractions = new Hashtable<>();
-		Hashtable<String, ArrayList<GroupOfInterest>> cubes = ProteinParser.cubes;
+//		Hashtable<String, ArrayList<GroupOfInterest>> cubes = ProteinParser.cubes;
 		
 		for (int op = 0; moreWork && op < operations.length; op += 4) {
 			String sourceSuffix = operations[op];
@@ -859,7 +910,7 @@ public class ProteinParser implements SettingListener{
 		return foundInteractions; 
 	}
 
-	private void outputCsv(Atom atom1, Atom atom2, double distance, String operation, String subOperation) {
+	private void outputTsv(Atom atom1, Atom atom2, double distance, String operation, String subOperation) {
 		Group residue1 = ((AtomImpl) atom1).getGroup();
 		Group residue2 = ((AtomImpl) atom2).getGroup();
 		Structure structure = residue1.getChain().getStructure();
@@ -1030,29 +1081,6 @@ public class ProteinParser implements SettingListener{
 			throw new IllegalArgumentException("Unknown Operation: "+ operation);
 		}
 		
-//		switch (group2.getGroupOfInterestType()) {
-//		case GroupOfInterest.CODE_CYS:
-//		case GroupOfInterest.CODE_CSO:
-//			Atom[] keyAtoms = group2.getKeyAtoms();
-//			if (keyAtoms.length == 2 && keyAtoms[1] != null) {
-//				atom = keyAtoms[1];
-//				cutoff = 2.0f;
-//			} else {
-//				atom = keyAtoms[0];
-//				cutoff = 3.1f;
-//			}
-//			break;
-//		case GroupOfInterest.CODE_SEC:
-//		case GroupOfInterest.CODE_SE7:
-//			atom = group2.getKeyAtoms()[0];
-//			cutoff = 1.5f;
-//			break;
-//		default:
-//			//TODO write warning
-//			return false;
-////			break;
-//		}
-		
 		if(atoms1 == null || atoms2 == null) {
 			return false;
 		}
@@ -1073,15 +1101,15 @@ public class ProteinParser implements SettingListener{
 					String value = ResultManager.encodeDrawSphereCommand(name, point3d2, cutoff);
 					scriptCollectionBuffer.put(name, value);
 					confirmed = true;
-					outputCsv(atom1, atom2, Math.sqrt(distanceSquared), operation, subOperation);
+					outputTsv(atom1, atom2, Math.sqrt(distanceSquared), operation, subOperation);
 				}
 			}
 		}
 		return confirmed;
 	}
 
-	private void parseChain(Chain chain) {
-		System.out.println("parsing chain "+chain.getName());
+	private void parseChain(Chain chain, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
+		logStringBuilder.append("parsing chain ").append(chain.getName()).append('\n');
 		int prevResidueSeqNum = -1;
 		AminoAcidOfInterest currentAA = null;
 		Group prevGroup = null;
@@ -1114,7 +1142,7 @@ public class ProteinParser implements SettingListener{
 						GroupOfInterest.NAME___TYR.equals(aaPdbName)
 						) {
 					try {
-						currentAA = new AminoAcidOfInterest((AminoAcid) group);
+						currentAA = new AminoAcidOfInterest((AminoAcid) group, cubes);
 						lastAACached = true;
 					} catch (IllegalArgumentException e) {
 						System.err.println(e.getMessage());
@@ -1123,8 +1151,8 @@ public class ProteinParser implements SettingListener{
 				}
 				
 				if (currentResidueNumber != prevResidueSeqNum + 1) {  //if N-Terminus
-					AminoAcidOfInterest first = (currentAA != null) ? currentAA : new AminoAcidOfInterest((AminoAcid) group);
-					first.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME___1ST);
+					AminoAcidOfInterest first = (currentAA != null) ? currentAA : new AminoAcidOfInterest((AminoAcid) group, cubes);
+					first.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME___1ST, cubes);
 				}
 
 //				try {
@@ -1162,12 +1190,12 @@ public class ProteinParser implements SettingListener{
 						GroupOfInterest.NAME_D_SER.equals(aaPdbName)||
 						GroupOfInterest.NAME_D_TYR.equals(aaPdbName)
 						) {
-					currentAA = new AminoAcidOfInterest(group);
+					currentAA = new AminoAcidOfInterest(group, cubes);
 					lastAACached = true;
 				}else {
 					this.foundHetGroups++;
 					HetatomImpl hetatomImpl = (HetatomImpl) group;
-					HetGroupOfInterest.newHetGroupOfInterest(hetatomImpl);
+					HetGroupOfInterest.newHetGroupOfInterest(hetatomImpl, cubes);
 				}
 			}else {
 				//Don know yet
@@ -1176,8 +1204,8 @@ public class ProteinParser implements SettingListener{
 			prevResidueSeqNum = currentResidueNumber;
 		}
 		if(prevGroup != null && ! lastAACached && prevGroup instanceof AminoAcid) {
-			AminoAcidOfInterest last = (prevGroup == currentAA) ? currentAA : new AminoAcidOfInterest((AminoAcid) prevGroup);
-			last.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME___LST);
+			AminoAcidOfInterest last = (prevGroup == currentAA) ? currentAA : new AminoAcidOfInterest((AminoAcid) prevGroup, cubes);
+			last.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME___LST, cubes);
 		}
 
 		this.chainsParsed++;
@@ -1196,26 +1224,25 @@ public class ProteinParser implements SettingListener{
 	}
 
 
-	public static void putInCube(GroupOfInterest aa, int x, int y, int z, String suffix) {
-			String cubeName=x+"|"+y+"|"+z+suffix;
-			ArrayList<GroupOfInterest> cube;
-			if (cubes.containsKey(cubeName)) {
-				cube = cubes.get(cubeName);
-			}else {
-				cube = new ArrayList<GroupOfInterest>();
-				cubes.put(cubeName, cube);
-	//			if (suffix.equals(NAME_PHE)) {
-	//				aromaticCubesNames.add(cubeName);
-	//			}
-			}
-			if (!cube.contains(aa)) {
-				cube.add(aa);
-				AminoAcidOfInterest.ContainingCube containingCube= new AminoAcidOfInterest.ContainingCube();
-				containingCube.x=x;
-				containingCube.y=y;
-				containingCube.z=z;
-				aa.getContainingCubes().add(containingCube);
-			}
+	public static void putInCube(GroupOfInterest aa, int x, int y, int z, String suffix, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
+		String cubeName=x+"|"+y+"|"+z+suffix;
+		ArrayList<GroupOfInterest> cube;
+		if (cubes.containsKey(cubeName)) {
+			cube = cubes.get(cubeName);
+		}else {
+			cube = new ArrayList<GroupOfInterest>();
+			cubes.put(cubeName, cube);
+			//			if (suffix.equals(NAME_PHE)) {
+			//				aromaticCubesNames.add(cubeName);
+			//			}
 		}
-	
+		if (!cube.contains(aa)) {
+			cube.add(aa);
+			AminoAcidOfInterest.ContainingCube containingCube= new AminoAcidOfInterest.ContainingCube();
+			containingCube.x=x;
+			containingCube.y=y;
+			containingCube.z=z;
+			aa.getContainingCubes().add(containingCube);
+		}
+	}	
 }

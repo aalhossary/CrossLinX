@@ -1,6 +1,7 @@
 package amralhossary.bonds;
 
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
 
 import org.biojava.nbio.structure.AminoAcidImpl;
@@ -33,13 +34,15 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 	private int groupOfInterestType;
 	
 	
-	public static HetGroupOfInterest newHetGroupOfInterest(Group groupOfInterest){
+	public static HetGroupOfInterest newHetGroupOfInterest(
+			Group groupOfInterest,
+			Hashtable<String, ArrayList<GroupOfInterest>> cubes){
 		String pdbName = groupOfInterest.getPDBName();
 		if (pdbName == null || "HOH".equalsIgnoreCase(pdbName)) {
 			return null;
 		}else {
 			try {
-				return new HetGroupOfInterest(groupOfInterest);
+				return new HetGroupOfInterest(groupOfInterest, cubes);
 			} catch (IllegalArgumentException e) {
 				System.err.println(e.getMessage());
 				return null;
@@ -47,7 +50,7 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 		}
 	}
 	
-	public HetGroupOfInterest(Group hetGroupOfInterest) {
+	public HetGroupOfInterest(Group hetGroupOfInterest, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
 		super();
 		//first stage: cloning
 		this.setPDBFlag(hetGroupOfInterest.has3D());		
@@ -67,7 +70,7 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 		//third stage: filling contents
 		fillContents();
 		//forth stage
-		putHetGroupOfInterestInCorrespondingCube(suffix);
+		putHetGroupOfInterestInCorrespondingCube(suffix, cubes);
 	}
 
 	private void fillContents() {
@@ -96,7 +99,7 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 		keyNAtoms = nAtomsOfInterest.toArray(new Atom[nAtomsOfInterest.size()]);
 	}
 	
-	void putHetGroupOfInterestInCorrespondingCube(String suffix) {
+	void putHetGroupOfInterestInCorrespondingCube(String suffix, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
 		int x,y,z;
 		if(keyAtoms == null)
 			return;
@@ -106,7 +109,7 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 				x = ProteinParser.angstromToCube(keyAtom.getX());
 				y = ProteinParser.angstromToCube(keyAtom.getY());
 				z = ProteinParser.angstromToCube(keyAtom.getZ());
-				ProteinParser.putInCube(this, x, y, z, suffix);
+				ProteinParser.putInCube(this, x, y, z, suffix, cubes);
 			}
 		}
 	}

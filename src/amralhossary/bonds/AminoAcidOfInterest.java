@@ -1,6 +1,7 @@
 package amralhossary.bonds;
 
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
 
 //import javax.vecmath.Point3d;
@@ -35,11 +36,13 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 
 	static int processedAtoms;
 
-	public static AminoAcidOfInterest newAcidOfInterest(AminoAcid aminoAcidOfInterest){
-		return new AminoAcidOfInterest(aminoAcidOfInterest);
+	public static AminoAcidOfInterest newAcidOfInterest(
+			AminoAcid aminoAcidOfInterest,
+			Hashtable<String, ArrayList<GroupOfInterest>> cubes){
+		return new AminoAcidOfInterest(aminoAcidOfInterest, cubes);
 	}
 	
-	public AminoAcidOfInterest(Group aminoAcidOfInterest) {
+	public AminoAcidOfInterest(Group aminoAcidOfInterest, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
 		super();
 		//first stage: cloning
 		this.setPDBFlag(aminoAcidOfInterest.has3D());		
@@ -53,16 +56,16 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 		}
 		this.setChain(aminoAcidOfInterest.getChain());
 		
-		initialize();
+		initialize(cubes);
 	}
 
-	private void initialize() {
+	private void initialize(Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
 		//second stage: setting code_type
 		setCodeType();
 		//third stage: filling contents
 		fillContents();
 		//forth stage
-		putGroupOfInterestInCorrespondingCube(suffix);
+		putGroupOfInterestInCorrespondingCube(suffix, cubes);
 	}
 
 	protected void setCodeType() {
@@ -352,7 +355,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 	 * are located in different cubes.
 	 * @param aa the {@link AminoAcid} instance to put into cube.
 	 */
-	protected void putGroupOfInterestInCorrespondingCube(String suffix) {
+	protected void putGroupOfInterestInCorrespondingCube(String suffix, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
 		int x,y,z;
 		x=y=z=0;
 		if(keyAtoms == null)
@@ -363,7 +366,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 				x = ProteinParser.angstromToCube(keyAtom.getX());
 				y = ProteinParser.angstromToCube(keyAtom.getY());
 				z = ProteinParser.angstromToCube(keyAtom.getZ());
-				ProteinParser.putInCube(this, x, y, z, suffix);
+				ProteinParser.putInCube(this, x, y, z, suffix, cubes);
 			}
 		}
 	}
