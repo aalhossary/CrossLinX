@@ -291,7 +291,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JLabel getAboutVersionLabel() {
 		if (aboutVersionLabel == null) {
 			aboutVersionLabel = new JLabel();
-			aboutVersionLabel.setText("<html><center>Protein Crosslinkcs Explorer<br>Version 0.1.2 <b>(BETA)</B></center></html>");
+			aboutVersionLabel.setText("<html><center>Protein Crosslinkcs Explorer<br>Version 0.1.3 <b>(BETA)</B></center></html>");
 			aboutVersionLabel.setHorizontalAlignment(SwingConstants.CENTER);
 		}
 		return aboutVersionLabel;
