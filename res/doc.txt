@@ -1,11 +1,11 @@
-Rare Bonds Explorer.
+Protein CrossLinks Explorer.
 
 Usage:
-  bonds.jar [all [--list-only]] [--no-gui] [--pdb-dir <PDIR>] [--home-dir <HDIR>]
-  bonds.jar from-file <FILE> [--no-gui] [--pdb-dir <PDIR>] [--home-dir <HDIR>]
-  bonds.jar from-list <LIST> [--no-gui] [--pdb-dir <PDIR>] [--home-dir <HDIR>]
-  bonds.jar (-h | --help)
-  bonds.jar --version
+  crosslinx.jar [all [--list-only]] [--no-gui] [--pdb-dir <PDIR>] [--home-dir <HDIR>]
+  crosslinx.jar from-file <FILE> [--no-gui] [--pdb-dir <PDIR>] [--home-dir <HDIR>]
+  crosslinx.jar from-list <LIST> [--no-gui] [--pdb-dir <PDIR>] [--home-dir <HDIR>]
+  crosslinx.jar (-h | --help)
+  crosslinx.jar --version
 
 
 

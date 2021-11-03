@@ -125,7 +125,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			jFrame.setJMenuBar(getJJMenuBar());
 			jFrame.setSize(847, 514);
 			jFrame.setContentPane(getJContentPane());
-			jFrame.setTitle("Unusual bonds finder");
+			jFrame.setTitle("Cross Links Explorer");
 			redirectSystemStreams();
 			jFrame.addWindowListener(new java.awt.event.WindowAdapter() {
 				public void windowClosing(java.awt.event.WindowEvent e) {
