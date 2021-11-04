@@ -477,8 +477,8 @@ public class ProteinParser implements SettingListener{
 	}
 
 	public void parseResults(Scanner scanner) {
-//		final String startOfStructurePrefix = ResultManager.START_OF_STRUCTURE_PREFIX;
-//		final int tokenNamePosition = startOfStructurePrefix.length();
+		final String startOfStructurePrefix = ResultManager.START_OF_STRUCTURE_PREFIX;
+		final int tokenNamePosition = startOfStructurePrefix.length();
 		File log=null;
 		try {
 			log = new File(settingsManager.getWorkingFolder(), "log.txt");
@@ -490,16 +490,18 @@ public class ProteinParser implements SettingListener{
 			System.err.println("couldn't create file ["+log.getAbsolutePath()+"] for output");
 			e.printStackTrace();
 		}
-		Hashtable<String, Hashtable<String, HashSet<String>>> allPersistedInteractions= new Hashtable<String, Hashtable<String,HashSet<String>>>();
-//		int count=0;
-//		int aromaticAAOfInterestType;
-//		while (scanner.hasNextLine() && moreWork) {
-//			String line = scanner.nextLine()/*.trim()*/;
-//			if (line.length()!= 0) {
-//				// retrieving code here
-//				if (line.startsWith(startOfStructurePrefix)) {
-//					String token = line.substring(tokenNamePosition);
-//					Hashtable<String, HashSet<String>> retreivedSetOfInteractions = ResultManager.retrieveSetOfInteractions(scanner);
+//		Hashtable<String, Hashtable<String, HashSet<String>>> allPersistedInteractions= new Hashtable<String, Hashtable<String,HashSet<String>>>();
+
+		
+		int count=0;
+		int aromaticAAOfInterestType;
+		while (scanner.hasNextLine() && moreWork) {
+			String line = scanner.nextLine()/*.trim()*/;
+			if (line.length()!= 0) {
+				// retrieving code here
+				if (line.startsWith(startOfStructurePrefix)) {
+					String token = line.substring(tokenNamePosition);
+					Hashtable<String, HashSet<String>> retreivedSetOfInteractions = ResultManager.retrieveSetOfInteractions(scanner);
 //					//update frequencies
 //					for (String sourceAA : retreivedSetOfInteractions.keySet()) {
 //						char ch=sourceAA.charAt(3);
@@ -520,18 +522,18 @@ public class ProteinParser implements SettingListener{
 ////						updateFrequencies(aromaticAAOfInterestType, retreivedSetOfInteractions.get(sourceAA));
 //					}
 //
-////					//show a sign of life
-//					if (count % 1000 == 0) {
-//						System.out.println(count+" structures parsed");
-//					}
+//					//show a sign of life
+					if (count % 1000 == 0) {
+						System.out.println(count+" structures parsed");
+					}
 //					//put it in cubes, 
 //					allPersistedInteractions.put(token, retreivedSetOfInteractions);
-//					if (gui != null) {
-//						settingsManager.setShowWhileProcessing(false);//this line is important in order not to throw a NullPointerException on the next line
-//						gui.interactionsFoundInStructure(token, null, null);
-//					}
-//					count++;
-//				}else if (line.startsWith(ProteinParser.START_OF_STATISTICS)) {
+					if (gui != null) {
+						settingsManager.setShowWhileProcessing(false);//this line is important in order not to throw a NullPointerException on the next line
+						gui.interactionsFoundInStructure(token, null, null);
+					}
+					count++;
+				}else if (line.startsWith(ProteinParser.START_OF_STATISTICS)) {
 //					System.out.println("Parsed "+count+" structures. Please wait...");
 //					while (scanner.hasNextLine() && moreWork) {
 //						line=scanner.nextLine();
@@ -666,15 +668,15 @@ public class ProteinParser implements SettingListener{
 //							}
 //						}
 //					}
-//				}
-//			}
-//		}
-		totalFoundStructuresWithInteractions += allPersistedInteractions.keySet().size();
+				}
+			}
+		}
+//		totalFoundStructuresWithInteractions += allPersistedInteractions.keySet().size();
 		if (gui != null) {
 			gui.showResults(null);
 		}
 		
-		System.out.println(getPrintableStatistics());
+//		System.out.println(getPrintableStatistics());
 	}
 
 	void fixStartTime() {
@@ -835,6 +837,18 @@ public class ProteinParser implements SettingListener{
 		return structureParsedSuccessfully;
 	}
 
+	/**
+	 * This method finds interactions and report its output in an awkward way:
+	 * <ul>
+	 * <li>It returns Hashtable <{@link GroupOfInterest}, {@link HashSet}<{@link GroupOfInterest}></li>
+	 * <li>It fills thePassed-in scriptCollectionBuffer with Jmol script</li>
+	 * </ul>
+	 * Additionally, all log text is collected via logStringBuilder, in order not to mix with other threads.
+	 * @param scriptCollectionBuffer
+	 * @param cubes
+	 * @param logStringBuilder
+	 * @return
+	 */
 	Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> findInteractionsInCubes(
 			Hashtable<String, String> scriptCollectionBuffer, 
 			Hashtable<String, ArrayList<GroupOfInterest>> cubes,

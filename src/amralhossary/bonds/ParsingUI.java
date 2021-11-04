@@ -683,7 +683,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 						}
 //						pdbFileReader.setPdbDirectorySplit(settingsManager.getUserConfiguration().isSplit());
 						fileReader.setPath(settingsManager.getPdbFilePath());
-						fileReader.setFetchBehavior(FetchBehavior.LOCAL_ONLY);
+//						fileReader.setFetchBehavior(FetchBehavior.LOCAL_ONLY);
 						JmolPanel jmolPanel = getJmolPanel();
 						String token = (String) foundInteractionsList.getSelectedValue();
 						if (token != null) {

@@ -40,6 +40,9 @@ public class ResultManager {
 
 	private static final String INTERACTION_SEPARATOR = " \t-> ";
 	public static final String CACHE_RESULT_FOLDER = "temp/cashe";
+	public static final String START_OF_STRUCTURE_PREFIX = "in structure#";
+	public static final String FILED_TO_PARSE_AMINOACID = "##Filed to Parse ";
+
 	private static SettingsManager settingsManager = SettingsManager.getSettingsManager();
 
 	/**This function creates the list of connections to be persisted (cached), already 
@@ -99,7 +102,7 @@ public class ResultManager {
 		StringBuffer buffer = new StringBuffer();
 		buffer.append(GENERAL_SELECTION_SCRIPT);
 		//add spheres
-		String[] lines =specificCollectionScriptString.split(System.getProperty("line.separator"));
+		String[] lines =specificCollectionScriptString.split("\r?\n");
 		for (String line : lines) {
 			if (line.startsWith(SPHERE_KEYWORD) && settingsManager.isDomainEnabled()) {
 				buffer.append(decodeDrawSphereCommand(line));
@@ -541,11 +544,6 @@ public class ResultManager {
 		return commandLine;
 
 	}
-
-
-
-	public static final String START_OF_STRUCTURE_PREFIX = "in structure#";
-	public static final String FILED_TO_PARSE_AMINOACID = "##Filed to Parse ";
 
 	public static String getRepresentativeString(GroupOfInterest groupOfInterest) {
 		StringBuilder representativeString=
