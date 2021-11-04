@@ -2,14 +2,17 @@ package amralhossary.bonds;
 
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Hashtable;
@@ -33,6 +36,7 @@ import org.biojava.nbio.structure.Chain;
 import org.biojava.nbio.structure.EntityInfo;
 import org.biojava.nbio.structure.Group;
 import org.biojava.nbio.structure.HetatomImpl;
+import org.biojava.nbio.structure.PDBHeader;
 import org.biojava.nbio.structure.Site;
 import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.StructureException;
@@ -88,8 +92,8 @@ public class ProteinParser implements SettingListener{
 	static final String TO_C_TERMINUS	= "To C-Terminus";
 	static final String INCLUDING_TYR 	= "Including Tyr";
 
-	
-	
+	SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
+
 	public class ExploreTask extends RecursiveAction{
 		private static final long serialVersionUID = 1L;
 		private static final int CHUNK_SIZE = 5;
@@ -112,7 +116,7 @@ public class ProteinParser implements SettingListener{
 			if (endExclusive - startInclusive <= CHUNK_SIZE) {
 				Hashtable<String, ArrayList<GroupOfInterest>> cubes = new Hashtable<String, ArrayList<GroupOfInterest>>();
 				StringBuilder logStringBuilder = new StringBuilder();
-				for (int i = startInclusive; i < endExclusive; i++) {
+				for (int i = startInclusive; moreWork && i < endExclusive; i++) {
 					cubes.clear();
 					logStringBuilder.setLength(0);
 					String id = ids.get(i);
@@ -438,13 +442,7 @@ public class ProteinParser implements SettingListener{
 			if (! tsvPositiveResultsFile.exists()) {
 				tsvPositiveResultsFile.createNewFile();
 			}
-			this.tsvOut = new PrintStream(tsvPositiveResultsFile);
-			this.tsvOut.print("PDB ID\tResidue 1\tchain 1\tResidue 1 No\tAtom1 name\t"
-					+ "<--\tDistance\t-->\t"
-					+ "Residue 2\tchain 2\tResidue 2 No\tAtom2 name\t");
-			this.tsvOut.print("bond type\tsubtype / comments\tResolution\tRFree\tSource Organism Scientific\t");
-			this.tsvOut.print(String.format("%s\t%s\t%s\t%s\t", PILI_PILUS, ADHESIN_ADHESION, UBIQ, CYCLO_CYCLIC_LASSO));
-			this.tsvOut.println("Title");
+			writeTsvHeader(tsvPositiveResultsFile);
 
 
 			File log=null;
@@ -477,6 +475,7 @@ public class ProteinParser implements SettingListener{
 		forkJoinPool.invoke(new ExploreTask(allPdbIds));
 		System.out.println("after calling parallel rinning");
 	}
+
 	public void parseResults(Scanner scanner) {
 //		final String startOfStructurePrefix = ResultManager.START_OF_STRUCTURE_PREFIX;
 //		final int tokenNamePosition = startOfStructurePrefix.length();
@@ -910,6 +909,16 @@ public class ProteinParser implements SettingListener{
 		return foundInteractions; 
 	}
 
+	private void writeTsvHeader(File tsvPositiveResultsFile) throws FileNotFoundException {
+		this.tsvOut = new PrintStream(tsvPositiveResultsFile);
+		this.tsvOut.print("PDB ID\tResidue 1\tchain 1\tResidue 1 No\tAtom1 name\t"
+				+ "<--\tDistance\t-->\t"
+				+ "Residue 2\tchain 2\tResidue 2 No\tAtom2 name\t");
+		this.tsvOut.print("bond type\tsubtype / comments\tResolution\tRFree\tDep Date\tRel Date\tMod Date\tSource Organism Scientific\t");
+		this.tsvOut.print(String.format("%s\t%s\t%s\t%s\t", PILI_PILUS, ADHESIN_ADHESION, UBIQ, CYCLO_CYCLIC_LASSO));
+		this.tsvOut.println("Title");
+	}
+
 	private void outputTsv(Atom atom1, Atom atom2, double distance, String operation, String subOperation) {
 		Group residue1 = ((AtomImpl) atom1).getGroup();
 		Group residue2 = ((AtomImpl) atom2).getGroup();
@@ -928,11 +937,20 @@ public class ProteinParser implements SettingListener{
 		
 		str.append(operation).append('\t').append(subOperation).append('\t');
 
-		str.append(structure.getPDBHeader().getResolution()).append('\t')
-		.append(structure.getPDBHeader().getRfree());
+		PDBHeader pdbHeader = structure.getPDBHeader();
+		str.append(pdbHeader.getResolution()).append('\t').append(pdbHeader.getRfree()).append('\t');
+		
+		Date depDate = pdbHeader.getDepDate();
+		Date relDate = pdbHeader.getRelDate();
+		Date modDate = pdbHeader.getModDate();
+		if (modDate == null || modDate.equals(new Date(0)) ) {
+			modDate = relDate;
+		}
+		str.append(simpleDateFormat.format(depDate)).append('\t')
+		.append(simpleDateFormat.format(relDate)).append('\t')
+		.append(simpleDateFormat.format(modDate)).append('\t');
 		
 		//Source Organism Scientific
-		str.append('\t');
 		StringBuilder temp = new StringBuilder();
 		HashSet<String> strings = new HashSet<>();
 		List<EntityInfo> entityInfos = structure.getEntityInfos();
@@ -953,7 +971,7 @@ public class ProteinParser implements SettingListener{
 
 		//Binary checks
 		ArrayList<String> allStringsToScan = new ArrayList<>();
-		allStringsToScan.add(structure.getPDBHeader().getTitle());
+		allStringsToScan.add(pdbHeader.getTitle());
 		for (EntityInfo entityInfo : entityInfos) {
 			String organismScientific = entityInfo.getOrganismScientific();
 			allStringsToScan.add(organismScientific);
@@ -975,7 +993,7 @@ public class ProteinParser implements SettingListener{
 			String description = site.getDescription();
 			allStringsToScan.add(description);
 		}
-		List<String> keywords = structure.getPDBHeader().getKeywords();
+		List<String> keywords = pdbHeader.getKeywords();
 		for (String keyword : keywords) {
 			allStringsToScan.add(keyword);
 		}
@@ -987,7 +1005,7 @@ public class ProteinParser implements SettingListener{
 		outputBinaryTestFind(str, allStringsToScan, UBIQ);
 		outputBinaryTestFind(str, allStringsToScan, CYCLO_CYCLIC_LASSO);
 		
-		str.append('\t').append("\"").append(structure.getPDBHeader().getTitle()).append("\"");
+		str.append('\t').append("\"").append(pdbHeader.getTitle()).append("\"");
 		
 		this.tsvOut.println(str);
 	}
