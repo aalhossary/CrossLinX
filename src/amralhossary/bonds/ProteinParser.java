@@ -473,7 +473,7 @@ public class ProteinParser implements SettingListener{
 		ForkJoinPool forkJoinPool = ForkJoinPool.commonPool();
 		System.out.println("Parallelism = "+ ForkJoinPool.getCommonPoolParallelism());
 		forkJoinPool.invoke(new ExploreTask(allPdbIds));
-		System.out.println("after calling parallel rinning");
+		System.out.println("after calling parallel running");
 	}
 
 	public void parseResults(Scanner scanner) {
@@ -925,9 +925,7 @@ public class ProteinParser implements SettingListener{
 
 	private void writeTsvHeader(File tsvPositiveResultsFile) throws FileNotFoundException {
 		this.tsvOut = new PrintStream(tsvPositiveResultsFile);
-		this.tsvOut.print("PDB ID\tResidue 1\tchain 1\tResidue 1 No\tAtom1 name\t"
-				+ "<--\tDistance\t-->\t"
-				+ "Residue 2\tchain 2\tResidue 2 No\tAtom2 name\t");
+		this.tsvOut.print("PDB ID\tRes1\tC1\tRes1#\tA1\t<-\tDistance\t->\tRes2\tC2\tRes2#\tA2\t");
 		this.tsvOut.print("bond type\tsubtype / comments\tResolution\tRFree\tDep Date\tRel Date\tMod Date\tSource Organism Scientific\t");
 		this.tsvOut.print(String.format("%s\t%s\t%s\t%s\t", PILI_PILUS, ADHESIN_ADHESION, UBIQ, CYCLO_CYCLIC_LASSO));
 		this.tsvOut.println("Title");
@@ -943,7 +941,7 @@ public class ProteinParser implements SettingListener{
 		.append(residue1.getChain().getName()).append('\t') // I am reporting the chain authId (the one written in PDB) now.
 		.append(residue1.getResidueNumber().toString()).append('\t').append(atom1.getName()).append('\t');
 		
-		str.append("<--\t").append(String.format("%.3f", distance)).append("\t-->\t");
+		str.append("<-\t").append(String.format("%.3f", distance)).append("\t->\t");
 		
 		str.append(residue2.getPDBName()).append('\t')
 		.append(residue2.getChain().getName()).append('\t') // I am reporting the chain authId (the one written in PDB) now.
@@ -963,6 +961,8 @@ public class ProteinParser implements SettingListener{
 		str.append(simpleDateFormat.format(depDate)).append('\t')
 		.append(simpleDateFormat.format(relDate)).append('\t')
 		.append(simpleDateFormat.format(modDate)).append('\t');
+		
+//		System.out.format("%s\t%s\t%s\n", simpleDateFormat.format(depDate), simpleDateFormat.format(relDate), simpleDateFormat.format(modDate));
 		
 		//Source Organism Scientific
 		StringBuilder temp = new StringBuilder();
