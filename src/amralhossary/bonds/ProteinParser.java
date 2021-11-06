@@ -27,11 +27,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.swing.SwingUtilities;
-import javax.vecmath.Point3d;
 
 import org.biojava.nbio.structure.AminoAcid;
 import org.biojava.nbio.structure.Atom;
 import org.biojava.nbio.structure.AtomImpl;
+import org.biojava.nbio.structure.Calc;
 import org.biojava.nbio.structure.Chain;
 import org.biojava.nbio.structure.EntityInfo;
 import org.biojava.nbio.structure.Group;
@@ -494,7 +494,7 @@ public class ProteinParser implements SettingListener{
 
 		
 		int count=0;
-		int aromaticAAOfInterestType;
+//		int aromaticAAOfInterestType;
 		while (scanner.hasNextLine() && moreWork) {
 			String line = scanner.nextLine()/*.trim()*/;
 			if (line.length()!= 0) {
@@ -1125,12 +1125,10 @@ public class ProteinParser implements SettingListener{
 				Atom atom2 = atoms2[j];
 				if(atom2 == null)
 					continue;
-				Point3d point3d1 = new Point3d(atom1.getCoords());		
-				Point3d point3d2 = new Point3d(atom2.getCoords());
-				double distanceSquared = point3d1.distanceSquared(point3d2);
+				double distanceSquared = Calc.getDistanceFast(atom1, atom2);
 				if (distanceSquared <= cutoff2) {
 					String name = "Res" + group1.getResidueNumber().getSeqNum() + "_"+ group1.getChain().getName();
-					String value = ResultManager.encodeDrawSphereCommand(name, point3d2, cutoff);
+					String value = ResultManager.encodeDrawSphereCommand(name, atom2.getCoords(), cutoff);
 					scriptCollectionBuffer.put(name, value);
 					confirmed = true;
 					outputTsv(atom1, atom2, Math.sqrt(distanceSquared), operation, subOperation);

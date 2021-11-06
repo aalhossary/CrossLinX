@@ -52,7 +52,6 @@ import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
 import org.biojava.nbio.structure.align.util.UserConfiguration;
 import org.biojava.nbio.structure.io.CifFileReader;
 import org.biojava.nbio.structure.io.LocalPDBDirectory;
-import org.biojava.nbio.structure.io.LocalPDBDirectory.FetchBehavior;
 
 import amralhossary.bonds.SettingsManager.SettingListener;
 

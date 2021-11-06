@@ -17,8 +17,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.vecmath.Point3d;
-
 import org.biojava.nbio.structure.AminoAcid;
 import org.biojava.nbio.structure.Atom;
 import org.biojava.nbio.structure.align.util.UserConfiguration;
@@ -458,12 +456,12 @@ public class ResultManager {
 	//		
 	//		return commandEllip;
 	//	}
-	public static String encodeDrawSphereCommand(String name, Point3d center, double radius) {
+	public static String encodeDrawSphereCommand(String name, double[] center, double radius) {
 		StringBuilder builder = new StringBuilder()
 		.append(SPHERE_KEYWORD).append('\t').append(name).append('\t')
-		.append(String.format("%.2f", center.x)).append('\t')
-		.append(String.format("%.2f", center.y)).append('\t')
-		.append(String.format("%.2f", center.z)).append('\t')
+		.append(String.format("%.2f", center[0])).append('\t')
+		.append(String.format("%.2f", center[1])).append('\t')
+		.append(String.format("%.2f", center[2])).append('\t')
 		.append(String.format("%.2f", radius)).append(System.getProperty("line.separator"));
 		return builder.toString();
 	}
@@ -491,10 +489,10 @@ public class ResultManager {
 
 	// draw cylinder diameter 28.0 {70 -25 0} {70 25 0} color TRANSLUCENT red ;
 
-	public static String generateDrawCylinderCommand(double diameter, Point3d point1, Point3d point2) {
+	public static String generateDrawCylinderCommand(double diameter, double[] point1, double[] point2) {
 		double diameter1 =  diameter;
-		String firstpoint = " {" + point1.x + " " + point1.y + " " + point1.z + "} ";
-		String secondpoint = "{" + point2.x + " " + point2.y + " " + point2.z + "} ";
+		String firstpoint = " {" + point1[0] + " " + point1[1] + " " + point1[2] + "} ";
+		String secondpoint = "{" + point2[0] + " " + point2[1] + " " + point2[2] + "} ";
 		String commandCylinder = "draw cylinder diameter " + diameter1 + firstpoint + secondpoint  +  " color translucent green;" ;
 
 		return commandCylinder;
@@ -535,11 +533,11 @@ public class ResultManager {
 	 * @param width
 	 * @return
 	 */
-	public static String generateDrawLineCommand(String id, Point3d point1, Point3d point2, Color color,boolean translucent, double width) {
+	public static String generateDrawLineCommand(String id, double[] point1, double[] point2, Color color,boolean translucent, double width) {
 		double width1 =  width;
 		String color1 = "["+color.getRed()+','+color.getGreen()+','+color.getBlue()+']';
-		String firstpoint = " {" + point1.x + " " + point1.y + " " + point1.z + "} ";
-		String secondpoint = " {" + point2.x + " " + point2.y + " " + point2.z + "} ";
+		String firstpoint = " {" + point1[0] + " " + point1[1] + " " + point1[2] + "} ";
+		String secondpoint = "{" + point2[0] + " " + point2[1] + " " + point2[2] + "} ";
 		String commandLine = "draw id"+id+ " line width " + width1 + " color "+(translucent? "translucent ":"") + color1 +  firstpoint + secondpoint+";\r\n";
 		return commandLine;
 
