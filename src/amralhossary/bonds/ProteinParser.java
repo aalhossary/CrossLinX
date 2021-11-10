@@ -798,7 +798,7 @@ public class ProteinParser implements SettingListener{
 //			Hashtable<String, ArrayList<GroupOfInterest>> cubes = ProteinParser.cubes;
 			cubes.clear();
 			
-			List<Chain> chains = currentStructure.getChains(); //TODO I get all chains of the FIRST modell. Consider getting all models and updating outputted identifiers
+			List<Chain> chains = currentStructure.getChains(); //TODO I get all chains of the FIRST model. Consider getting all models and updating output identifiers
 			if (chains==null || chains.isEmpty()) {
 				this.emptyFiles++;
 				logStringBuilder.append("Unexpected error: NO chains are found AT ALL in the file ").append(structureName).append('\n');
@@ -1054,17 +1054,16 @@ public class ProteinParser implements SettingListener{
 		float cutoff, cutoff2;
 		Atom[] atoms1=null, atoms2=null;
 		
+		//Note that I use the == operator here
 		if (operation == ISOPEPTIDE) {
 			atoms1 = group1.getKeyNAtoms();
 			atoms2 = group2.getKeyCAtoms();
 			cutoff = 2.1f;
 			cutoff2= 4.41f;
 
-			//Note that I use the == operator here
 			if(subOperation == AA_C) {
 				atoms2 = new Atom[] {group2.getAtom("C")};
-			}
-			if(subOperation == N_AA) {
+			}else if(subOperation == N_AA) {
 				atoms1 = new Atom[] {group1.getAtom("N")};
 			}
 		}else if (operation == NXS_BOND) {
@@ -1076,8 +1075,8 @@ public class ProteinParser implements SettingListener{
 		}else if (operation == NOS_BOND) {
 			atoms1 = group1.getKeyNAtoms();
 			atoms2 = group2.getKeyOAtoms();  //unusual OD atom
-			cutoff = 3.1f;
-			cutoff2= 9.61f;
+			cutoff = 2.1f;
+			cutoff2= 4.41f;
 			if (atoms2[0] == null) {
 				return confirmLink(group1, group2, NXS_BOND, "CSO with missing O", scriptCollectionBuffer);
 			}

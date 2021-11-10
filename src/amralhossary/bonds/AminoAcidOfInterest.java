@@ -263,9 +263,9 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 				this.missingAtoms++;
 			}
 			if (od == null) {
-				keyAtoms = new Atom[] {atom};
+				keyAtoms = new Atom[] {od, atom};
 			} else {
-				keyAtoms = new Atom[] {atom, od};
+				keyAtoms = new Atom[] {od};
 			}
 			break;
 		case GroupOfInterest.CODE_CYS:
