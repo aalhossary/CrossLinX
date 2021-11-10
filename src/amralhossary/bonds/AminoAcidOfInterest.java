@@ -313,8 +313,10 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			Atom cd2 = getAtom("CD2");
 			Atom ce1 = getAtom("CE1");
 			Atom ce2 = getAtom("CE2");
-			keyCAtoms = new Atom[] {cb, cd1, cd2, ce1, ce2};
-			keyAtoms = new Atom[] {atom, cb, cd1, cd2, ce1, ce2};
+//			Atom cz  = getAtom("CZ");
+			//atoms ordered from out inwards. //TODO review the rest of lists
+			keyCAtoms = new Atom[] { /* cz, */ce1, ce2, cd1, cd2, cb};
+			keyAtoms = new Atom[] {atom, /* cz, */ ce1, ce2, cd1, cd2, cb};
 			break;
 		case GroupOfInterest.CODE_OTHERS:
 			List<Atom> atoms = getAtoms();
