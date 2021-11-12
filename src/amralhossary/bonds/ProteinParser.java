@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Scanner;
 import java.util.StringTokenizer;
 import java.util.concurrent.ForkJoinPool;
@@ -31,6 +32,8 @@ import java.util.regex.Pattern;
 
 import javax.swing.SwingUtilities;
 
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.biojava.nbio.structure.AminoAcid;
 import org.biojava.nbio.structure.Atom;
 import org.biojava.nbio.structure.AtomImpl;
@@ -46,6 +49,7 @@ import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.StructureException;
 import org.biojava.nbio.structure.align.util.AtomCache;
 import org.biojava.nbio.structure.io.FileParsingParameters;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import org.docopt.Docopt;
 
 import amralhossary.bonds.SettingsManager.SettingListener;
@@ -315,9 +319,11 @@ public class ProteinParser implements SettingListener{
 	}
 	
 	public static void main (String [] args) throws IOException {
+		
+	    String version = getVersion();
 		InputStream docStream = ProteinParser.class.getResourceAsStream("/doc.txt");
 		Docopt docopt = new Docopt(docStream);
-		Map<String, Object> options = docopt.withVersion("0.1.1").parse(args);
+		Map<String, Object> options = docopt.withVersion(version).parse(args);
 		
 //		Set<Entry<String,Object>> entrySet = options.entrySet();
 //		for (Entry<String, Object> entry : entrySet) {
@@ -381,6 +387,28 @@ public class ProteinParser implements SettingListener{
 					application.getJFrame().setVisible(true);
 				}
 			});
+		}
+	}
+
+	public static String getVersion() {
+		final String ERROR = "ERROR";
+		try {
+			if ((new File("pom.xml")).exists()) {
+				MavenXpp3Reader reader = new MavenXpp3Reader();
+				Model model = reader.read(new FileReader("pom.xml"));
+				return model.getVersion();
+			}
+			else {
+				final String versionFileName = "version.properties";
+				final String versionPropertyName = "app.ver";
+				Properties properties=new Properties();
+				InputStream res = ClassLoader.getSystemResourceAsStream(versionFileName);
+				properties.load(res);
+				return properties.containsKey(versionPropertyName)?properties.getProperty(versionPropertyName):ERROR;
+			}
+		} catch (IOException | XmlPullParserException e) {
+			e.printStackTrace();
+			return ERROR;
 		}
 	}
 	

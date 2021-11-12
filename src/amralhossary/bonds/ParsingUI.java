@@ -56,6 +56,8 @@ import org.biojava.nbio.structure.io.LocalPDBDirectory;
 import amralhossary.bonds.SettingsManager.SettingListener;
 
 import org.biojava.nbio.structure.io.PDBFileReader;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+
 import javax.swing.JSplitPane;
 
 public class ParsingUI implements ProteinParsingGUI, SettingListener{
@@ -290,7 +292,8 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JLabel getAboutVersionLabel() {
 		if (aboutVersionLabel == null) {
 			aboutVersionLabel = new JLabel();
-			aboutVersionLabel.setText("<html><center>Protein Crosslinkcs Explorer<br>Version 0.1.3 <b>(BETA)</B></center></html>");
+			aboutVersionLabel.setText("<html><center><br>Protein Crosslinkcs Explorer<br>Version "
+					+ ProteinParser.getVersion()+ " <b>(BETA)</B><br><br></center></html>");
 			aboutVersionLabel.setHorizontalAlignment(SwingConstants.CENTER);
 		}
 		return aboutVersionLabel;
@@ -417,8 +420,11 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JTextArea getFileListTextArea() {
 		if (fileListTextArea == null) {
 			fileListTextArea = new JTextArea();
-			fileListTextArea.setText("5nf0;3HTL;6VZX;5VBL;5EIN;6ZX4;1FMA;3ALB;7CAP;6o83;6ELW;3MLI;5JQF;6ZWJ;6ZWH;7B0L;1M3Q;3CLM;6ZWF;7BBX;7BBW;1v54;"
-					+ "1v55;7coh;2qpe;2yev;6e87;2b39;3p06;2PNL;4izk;2ATK;1AY1;5b0w;5O81;6jky;3OPU");
+			fileListTextArea.setText("1JPU;5NGQ;5nf0;3HTL;6VZX;5VBL;5EIN\n"
+					+ "6ZX4;1FMA;3ALB;7CAP;6o83;6ELW;3MLI;5JQF;6ZWJ;6ZWH\n"
+					+ "7B0L;1M3Q;3CLM;6ZWF;7BBX;7BBW;1v54\n"
+					+ "1v55;7coh;2qpe;2yev;6e87;2b39;3p06;2PNL\n"
+					+ "4izk;2ATK;1AY1;5b0w;5O81;6jky;3OPU");
 			fileListTextArea.setColumns(50);
 		}
 		return fileListTextArea;
