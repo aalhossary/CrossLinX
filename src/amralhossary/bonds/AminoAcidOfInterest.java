@@ -9,6 +9,7 @@ import org.biojava.nbio.structure.AminoAcidImpl;
 import org.biojava.nbio.structure.Atom;
 import org.biojava.nbio.structure.Element;
 import org.biojava.nbio.structure.Group;
+import org.biojava.nbio.structure.chem.ChemComp;
 
 /**
  * 
@@ -48,12 +49,26 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 		this.setPDBName(aminoAcidOfInterest.getPDBName());
 //		this.setAminoType(aminoAcidOfInterest.getAminoType());
 //		this.setRecordType(aminoAcidOfInterest.getRecordType());
+
 		// copy the atoms
 		for (Atom atom : aminoAcidOfInterest.getAtoms()) {
 			this.addAtom(atom);
+			atom.setGroup(this);
 		}
 		this.setChain(aminoAcidOfInterest.getChain());
 		
+		// copying the alt loc groups if present, otherwise they stay null
+		if (aminoAcidOfInterest.getAltLocs()!=null && !aminoAcidOfInterest.getAltLocs().isEmpty()) {
+			for (Group altLocGroup:aminoAcidOfInterest.getAltLocs()) {
+				Group nAltLocGroup = AminoAcidOfInterest.newAcidOfInterest((AminoAcid) altLocGroup, cubes);
+				this.addAltLoc(nAltLocGroup);
+			}
+		}
+
+		final ChemComp chemComp = aminoAcidOfInterest.getChemComp();
+		if (chemComp!=null)
+			this.setChemComp(chemComp);
+
 		initialize(cubes);
 	}
 
@@ -63,7 +78,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 		//third stage: filling contents
 		fillContents();
 		//forth stage
-		putGroupOfInterestInCorrespondingCube(suffix, cubes);
+		putInCorrespondingCube(suffix, cubes);
 	}
 
 	protected void setCodeType() {
@@ -355,7 +370,8 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 	 * are located in different cubes.
 	 * @param aa the {@link AminoAcid} instance to put into cube.
 	 */
-	protected void putGroupOfInterestInCorrespondingCube(String suffix, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
+	@Override
+	public void putInCorrespondingCube(String suffix, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
 		int x,y,z;
 		x=y=z=0;
 		if(keyAtoms == null)

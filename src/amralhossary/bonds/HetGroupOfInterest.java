@@ -8,6 +8,7 @@ import org.biojava.nbio.structure.AminoAcidImpl;
 import org.biojava.nbio.structure.Atom;
 import org.biojava.nbio.structure.Element;
 import org.biojava.nbio.structure.Group;
+import org.biojava.nbio.structure.chem.ChemComp;
 
 /**
  * 
@@ -34,7 +35,7 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 	private int groupOfInterestType;
 	
 	
-	public static HetGroupOfInterest newHetGroupOfInterest(
+	public static GroupOfInterest newHetGroupOfInterest(
 			Group groupOfInterest,
 			Hashtable<String, ArrayList<GroupOfInterest>> cubes){
 		String pdbName = groupOfInterest.getPDBName();
@@ -60,9 +61,21 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 		// copy the atoms
 		for (Atom atom : hetGroupOfInterest.getAtoms()) {
 			this.addAtom(atom);
+			atom.setGroup(this);
 		}
 		this.setChain(hetGroupOfInterest.getChain());
 		
+		// copying the alt loc groups if present, otherwise they stay null
+		if (hetGroupOfInterest.getAltLocs()!=null && !hetGroupOfInterest.getAltLocs().isEmpty()) {
+			for (Group altLocGroup:hetGroupOfInterest.getAltLocs()) {
+				Group nAltLocGroup = HetGroupOfInterest.newHetGroupOfInterest(altLocGroup, cubes);
+				this.addAltLoc(nAltLocGroup);
+			}
+		}
+
+		final ChemComp chemComp = hetGroupOfInterest.getChemComp();
+		if (chemComp!=null)
+			this.setChemComp(chemComp);
 		
 		//second stage: setting code_type
 		this.groupOfInterestType=GroupOfInterest.CODE_HET;
@@ -70,7 +83,7 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 		//third stage: filling contents
 		fillContents();
 		//forth stage
-		putHetGroupOfInterestInCorrespondingCube(suffix, cubes);
+		putInCorrespondingCube(suffix, cubes);
 	}
 
 	private void fillContents() {
@@ -99,7 +112,8 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 		keyNAtoms = nAtomsOfInterest.toArray(new Atom[nAtomsOfInterest.size()]);
 	}
 	
-	void putHetGroupOfInterestInCorrespondingCube(String suffix, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
+	@Override
+	public void putInCorrespondingCube(String suffix, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
 		int x,y,z;
 		if(keyAtoms == null)
 			return;

@@ -14,11 +14,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.StringTokenizer;
 import java.util.concurrent.ForkJoinPool;
@@ -37,6 +40,7 @@ import org.biojava.nbio.structure.EntityInfo;
 import org.biojava.nbio.structure.Group;
 import org.biojava.nbio.structure.HetatomImpl;
 import org.biojava.nbio.structure.PDBHeader;
+import org.biojava.nbio.structure.ResidueNumber;
 import org.biojava.nbio.structure.Site;
 import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.StructureException;
@@ -85,6 +89,9 @@ public class ProteinParser implements SettingListener{
 	static final String HIS_CYS			= "HIS to CYS";
 	static final String HIS_CSO			= "HIS to CSO";
 	static final String ETHER_BOND		= "Ether bond";
+	static final String LYS_TYR			= "LYS-TYR";
+	static final String ARG_TYR			= "ARG-TYR";
+	static final String HIS_TYR			= "HIS-TYR";
 	static final String TYR_TYR 		= "TYR-TYR";
 	static final String ESTER_BOND		= "Ester bond";
 	static final String THIOETHER_BOND	= "ThioEther bond";
@@ -136,9 +143,9 @@ public class ProteinParser implements SettingListener{
 	//source, target, bond type, subtype.
 	//This quadruplet structure is not the best option, but it is a fast one.
 	static final String[] operations = new String[] {
-			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___TYR, ISOPEPTIDE, INCLUDING_TYR,
-			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___TYR, ISOPEPTIDE, INCLUDING_TYR,
-			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___TYR, ISOPEPTIDE, INCLUDING_TYR, //Tyr, new, His <-> Tyr (2.2 A)
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___TYR, INCLUDING_TYR, LYS_TYR,
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___TYR, INCLUDING_TYR, ARG_TYR,
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___TYR, INCLUDING_TYR, HIS_TYR,
 			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___GLU, ISOPEPTIDE, "",
 			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___ASP, ISOPEPTIDE, "",
 			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___GLN, ISOPEPTIDE, "",
@@ -925,7 +932,7 @@ public class ProteinParser implements SettingListener{
 
 	private void writeTsvHeader(File tsvPositiveResultsFile) throws FileNotFoundException {
 		this.tsvOut = new PrintStream(tsvPositiveResultsFile);
-		this.tsvOut.print("PDB ID\tRes1\tC1\tRes1#\tA1\t<-\tDistance\t->\tRes2\tC2\tRes2#\tA2\t");
+		this.tsvOut.print("PDB ID\tRes1\tC1\tRes1#\tA1\tAltLoc1\t<-\tDistance\t->\tRes2\tC2\tRes2#\tA2\tAltLoc2\t");
 		this.tsvOut.print("bond type\tsubtype / comments\tResolution\tRFree\tDep Date\tRel Date\tMod Date\tSource Organism Scientific\t");
 		this.tsvOut.print(String.format("%s\t%s\t%s\t%s\t", PILI_PILUS, ADHESIN_ADHESION, UBIQ, CYCLO_CYCLIC_LASSO));
 		this.tsvOut.println("Title");
@@ -940,12 +947,16 @@ public class ProteinParser implements SettingListener{
 		str.append(residue1.getPDBName()).append('\t')
 		.append(residue1.getChain().getName()).append('\t') // I am reporting the chain authId (the one written in PDB) now.
 		.append(residue1.getResidueNumber().toString()).append('\t').append(atom1.getName()).append('\t');
+		final Character altLoc1 = atom1.getAltLoc();
+		str.append(altLoc1 == null ? "" : altLoc1).append('\t');
 		
 		str.append("<-\t").append(String.format("%.3f", distance)).append("\t->\t");
 		
 		str.append(residue2.getPDBName()).append('\t')
 		.append(residue2.getChain().getName()).append('\t') // I am reporting the chain authId (the one written in PDB) now.
 		.append(residue2.getResidueNumber().toString()).append('\t').append(atom2.getName()).append('\t');
+		final Character altLoc2 = atom2.getAltLoc();
+		str.append(altLoc2 == null ? "" : altLoc2).append('\t');
 		
 		str.append(operation).append('\t').append(subOperation).append('\t');
 
@@ -1066,6 +1077,9 @@ public class ProteinParser implements SettingListener{
 			}else if(subOperation == N_AA) {
 				atoms1 = new Atom[] {group1.getAtom("N")};
 			}
+		}else if (operation == INCLUDING_TYR) { //LYS_TYR, ARG_TYR, HIS_TYR
+			cutoff = 2.2f;
+			cutoff2= 4.84f;
 		}else if (operation == NXS_BOND) {
 			atoms1 = group1.getKeyNAtoms();
 			atoms2 = group2.getKeyAtoms(); // S atom
@@ -1086,10 +1100,10 @@ public class ProteinParser implements SettingListener{
 				atoms2 = new Atom[] {group2.getAtom("C")};
 			else
 				atoms2  = group2.getKeyAtoms();
-			cutoff = 2.5f;
-			cutoff2= 6.25f;
+			cutoff = 2.1f;
+			cutoff2= 4.41f;
 		}else if(operation == ETHER_BOND) {
-			if(group1 == group2 && group1 instanceof AminoAcidOfInterest && ((AminoAcidOfInterest)group1).aAOfInterestType==GroupOfInterest.CODE_TYR)
+			if(group1.getResidueNumber().equals(group2.getResidueNumber()) && group1 instanceof AminoAcidOfInterest && ((AminoAcidOfInterest)group1).aAOfInterestType==GroupOfInterest.CODE_TYR)
 				return false;
 			atoms1 = group1.getKeyOAtoms();
 			atoms2 = group2.getKeyCAtoms();
@@ -1137,7 +1151,14 @@ public class ProteinParser implements SettingListener{
 		return confirmed;
 	}
 
-	private void parseChain(Chain chain, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
+	/**
+	 * @deprecated left to compare its performance with the new one that handles AltLocs
+	 * @param chain
+	 * @param cubes
+	 * @param logStringBuilder
+	 */
+	@Deprecated
+	private void parseChain_old(Chain chain, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
 		logStringBuilder.append("parsing chain ").append(chain.getName()).append('\n');
 		int prevResidueSeqNum = -1;
 		AminoAcidOfInterest currentAA = null;
@@ -1147,7 +1168,7 @@ public class ProteinParser implements SettingListener{
 		for (Group group : allGroups) {
 			lastAACached = false;
 			int currentResidueNumber = group.getResidueNumber().getSeqNum();
-			if ( group instanceof AminoAcid) {
+			if (group instanceof AminoAcid) {
 				this.foundAminoAcids++;
 				currentAA = null;
 				//TODO refactor this if statement and the AminoAcidOfInterest 
@@ -1181,20 +1202,8 @@ public class ProteinParser implements SettingListener{
 				
 				if (currentResidueNumber != prevResidueSeqNum + 1) {  //if N-Terminus
 					AminoAcidOfInterest first = (currentAA != null) ? currentAA : new AminoAcidOfInterest((AminoAcid) group, cubes);
-					first.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME___1ST, cubes);
+					first.putInCorrespondingCube("|"+GroupOfInterest.NAME___1ST, cubes);
 				}
-
-//				try {
-//				} catch (RuntimeException e) {
-//					this.failedToParseAminoAcids++;
-//					AminoAcid acid = (AminoAcid) group;
-//					StringBuilder builder = new StringBuilder();
-//					builder.append(ResultManager.FILED_TO_PARSE_AMINOACID).append(acid.getPDBName()).append("]").append(acid.getResidueNumber()).append(":").append(acid.getChain().getName());
-//					System.out.println(builder.toString());
-//					this.log.append(builder.toString());
-//					e.printStackTrace();
-//					e.printStackTrace(out);
-//				}
 
 //				if (aa != null) {
 ////					this.foundAminoAcidsOfInterest++;
@@ -1232,13 +1241,166 @@ public class ProteinParser implements SettingListener{
 			prevGroup = group;
 			prevResidueSeqNum = currentResidueNumber;
 		}
-		if(prevGroup != null && ! lastAACached && prevGroup instanceof AminoAcid) {
+		if(prevGroup != null /*if there were any groups parsed in the chain*/ 
+				&& prevGroup instanceof AminoAcid
+				&& ! lastAACached 
+				) {
 			AminoAcidOfInterest last = (prevGroup == currentAA) ? currentAA : new AminoAcidOfInterest((AminoAcid) prevGroup, cubes);
-			last.putGroupOfInterestInCorrespondingCube("|"+GroupOfInterest.NAME___LST, cubes);
+			last.putInCorrespondingCube("|"+GroupOfInterest.NAME___LST, cubes);
 		}
 
 		this.chainsParsed++;
 	}
+
+
+
+	private void parseChain(Chain chain, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
+		logStringBuilder.append("parsing chain ").append(chain.getName()).append('\n');
+		
+		//map from group to boolean (aminoAcid)
+		//all types set to Group to allow D-AminoAcids
+		Map<Group, Boolean> aminoacids = new LinkedHashMap<>();
+		Map<Group, Boolean> nTerminus  = new LinkedHashMap<>();
+		Map<Group, Boolean> cTerminus  = new LinkedHashMap<>();
+		Map<Group, Boolean> ligands    = new LinkedHashMap<>();
+		//type set to Group to allow D-AminoAcids
+		Group   cTerminusCandidate = null;
+		
+		int prevResidueSeqNum = -1;
+		List<Group> allGroups = chain.getAtomGroups();
+		for (Group group : allGroups) {
+//			lastAACached = false;
+			final int currentResidueNumber = group.getResidueNumber().getSeqNum();
+			final String groupPdbName = group.getPDBName();
+			
+			if (group instanceof AminoAcid) {
+				if(
+						GroupOfInterest.NAME___LYS.equals(groupPdbName)||
+						GroupOfInterest.NAME___ARG.equals(groupPdbName)||
+						GroupOfInterest.NAME___HIS.equals(groupPdbName)||
+						GroupOfInterest.NAME___LYS.equals(groupPdbName)||
+						GroupOfInterest.NAME___GLU.equals(groupPdbName)||
+						GroupOfInterest.NAME___GLN.equals(groupPdbName)||
+						GroupOfInterest.NAME___ASP.equals(groupPdbName)||
+						GroupOfInterest.NAME___ASN.equals(groupPdbName)||
+						GroupOfInterest.NAME___CYS.equals(groupPdbName)||
+						GroupOfInterest.NAME___CSO.equals(groupPdbName)||
+						GroupOfInterest.NAME___SEC.equals(groupPdbName)||
+						GroupOfInterest.NAME___SE7.equals(groupPdbName)||
+						GroupOfInterest.NAME___THR.equals(groupPdbName)||
+						GroupOfInterest.NAME___SER.equals(groupPdbName)||
+						GroupOfInterest.NAME___TYR.equals(groupPdbName)
+						) 
+				{
+					aminoacids.put(group, true);
+					cTerminusCandidate = group;
+				}
+				
+				if (currentResidueNumber != prevResidueSeqNum + 1) {  //if N-Terminus
+					nTerminus.put(group, true);
+					
+					if (cTerminusCandidate != null) {  //if N-Terminus following C-Terminus
+						cTerminus.put(cTerminusCandidate, true);
+						cTerminusCandidate = null;
+					}
+				}
+			} else if(group instanceof HetatomImpl){ //D-AminoAcids
+				if(groupPdbName.startsWith("D") && (
+						GroupOfInterest.NAME_D_LYS.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_ARG.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_HIS.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_LYS.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_GLU.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_GLN.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_ASP.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_ASN.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_CYS.equals(groupPdbName)||
+//						GroupOfInterest.NAME_D_CSO.equals(groupPdbName)||
+//						GroupOfInterest.NAME_D_SEC.equals(groupPdbName)||
+//						GroupOfInterest.NAME_D_SE7.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_THR.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_SER.equals(groupPdbName)||
+						GroupOfInterest.NAME_D_TYR.equals(groupPdbName)
+						)) 
+				{
+					aminoacids.put(group, true);
+					if (currentResidueNumber != prevResidueSeqNum + 1) {  //if N-Terminus
+						nTerminus.put(group, true);
+					}
+					cTerminusCandidate = group;
+				}else { //Ligand
+					ligands.put(group, false);
+					if (cTerminusCandidate != null) {
+						cTerminus.put(cTerminusCandidate, true);
+						cTerminusCandidate = null;
+					}
+				}
+			} else { //nucleotide and others
+				//Don know yet
+			}
+		}//end of for loop
+		if (cTerminusCandidate != null) {
+			cTerminus.put(cTerminusCandidate, true);
+			cTerminusCandidate = null;
+		}
+
+		HashMap<ResidueNumber, List<GroupOfInterest>> allParsed = new HashMap<>();
+		manageGroupList(aminoacids,	null,							allParsed, cubes, logStringBuilder);
+		manageGroupList(ligands,	null,							allParsed, cubes, logStringBuilder);
+		manageGroupList(nTerminus,	"|"+GroupOfInterest.NAME___1ST,	allParsed, cubes, logStringBuilder);
+		manageGroupList(cTerminus,	"|"+GroupOfInterest.NAME___LST,	allParsed, cubes, logStringBuilder);
+
+		this.chainsParsed++;
+	}
+
+	private void manageGroupList(Map<Group, Boolean> groups, String suffix,
+			HashMap<ResidueNumber, List<GroupOfInterest>> allParsed, Hashtable<String, ArrayList<GroupOfInterest>> cubes,
+			StringBuilder logStringBuilder) {
+		for (Entry<Group, Boolean> entry : groups.entrySet()) {
+			Group group = entry.getKey();
+			Boolean aminoAcid = entry.getValue();
+			final ResidueNumber residueNumber = group.getResidueNumber();
+			
+			
+			List<GroupOfInterest> parsedGroupsOfInterest = allParsed.get(residueNumber);
+			if (parsedGroupsOfInterest == null) {
+				parsedGroupsOfInterest = new ArrayList<GroupOfInterest>();
+				if (!group.hasAltLoc()) {
+					GroupOfInterest groupOfInterest = createGroupOfInterest(group, aminoAcid, cubes);
+					parsedGroupsOfInterest.add(groupOfInterest);
+				} else {
+					for(Group groupTemp : group.getAltLocs()) {
+						GroupOfInterest groupOfInterest = createGroupOfInterest(groupTemp, aminoAcid, cubes);
+						parsedGroupsOfInterest.add(groupOfInterest);
+					}
+				}
+				allParsed.put(residueNumber, parsedGroupsOfInterest);
+			}
+
+			//put in additional cubes
+			if (suffix != null) {
+				//LOOP of parsedGroupsOfInterest
+				for(GroupOfInterest groupOfInterest: parsedGroupsOfInterest) {
+					groupOfInterest.putInCorrespondingCube(suffix, cubes);
+				}
+			}
+		}
+	}
+
+	private GroupOfInterest createGroupOfInterest(Group group, Boolean aminoAcid, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
+		GroupOfInterest groupOfInterest;
+		if (aminoAcid) {
+			if(group instanceof AminoAcid) {
+				groupOfInterest = AminoAcidOfInterest.newAcidOfInterest((AminoAcid)group, cubes);
+			} else {
+				groupOfInterest = new AminoAcidOfInterest(group, cubes);						
+			}
+		} else {
+			groupOfInterest = HetGroupOfInterest.newHetGroupOfInterest(group, cubes);
+		}
+		return groupOfInterest;
+	}
+
 	
 	public ProteinParsingGUI getGui() {
 		return gui;

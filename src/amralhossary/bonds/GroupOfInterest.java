@@ -4,6 +4,7 @@
 package amralhossary.bonds;
 
 import java.util.ArrayList;
+import java.util.Hashtable;
 
 import org.biojava.nbio.structure.Atom;
 import org.biojava.nbio.structure.Group;
@@ -84,6 +85,8 @@ public interface GroupOfInterest extends Group {
 
 	public abstract void setContainingCubes(ArrayList<ContainingCube> containingCubes);
 	
+	void putInCorrespondingCube(String suffix, Hashtable<String, ArrayList<GroupOfInterest>> cubes);
+
 	public static class ContainingCube{
 		public int x;
 		public int y;
