@@ -53,7 +53,6 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 		// copy the atoms
 		for (Atom atom : aminoAcidOfInterest.getAtoms()) {
 			this.addAtom(atom);
-			atom.setGroup(this);
 		}
 		this.setChain(aminoAcidOfInterest.getChain());
 		

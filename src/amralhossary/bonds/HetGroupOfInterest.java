@@ -61,7 +61,6 @@ public class HetGroupOfInterest extends AminoAcidImpl implements GroupOfInterest
 		// copy the atoms
 		for (Atom atom : hetGroupOfInterest.getAtoms()) {
 			this.addAtom(atom);
-			atom.setGroup(this);
 		}
 		this.setChain(hetGroupOfInterest.getChain());
 		

@@ -16,8 +16,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.util.HashSet;
-import java.util.Hashtable;
+import java.util.List;
 import java.util.Scanner;
 
 import javax.swing.BorderFactory;
@@ -38,6 +37,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
@@ -47,21 +47,32 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.text.BadLocationException;
 
+import org.biojava.nbio.structure.PdbId;
 import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
-import org.biojava.nbio.structure.align.util.UserConfiguration;
-import org.biojava.nbio.structure.io.CifFileReader;
-import org.biojava.nbio.structure.io.LocalPDBDirectory;
 
 import amralhossary.bonds.SettingsManager.SettingListener;
 
-import org.biojava.nbio.structure.io.PDBFileReader;
-import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
-
-import javax.swing.JSplitPane;
-
 public class ParsingUI implements ProteinParsingGUI, SettingListener{
+	
+	public static class BondListItem{
+		private String fullString = null;
 
+		public BondListItem(String fullString) {
+			this.fullString = fullString;
+		}
+
+		@Override
+		public String toString() {
+			return ResultManager.removeAtomCoords(fullString);
+		}
+		
+		public String getFullString() {
+			return fullString;
+		}
+	}
+
+	private final int[] NO_SELECTION = new int[] {};
 	private static final int MAX_TEXT_CONTENTS = 80000;
 	private JFrame jFrame = null;  //  @jve:decl-index=0:visual-constraint="10,10"
 	private JPanel jContentPane = null;
@@ -76,8 +87,10 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JLabel aboutVersionLabel = null;
 //	protected File selectedFolder;
 	private JScrollPane visualsScrollPane = null;
-	private JPanel leftPanel = null;
+	private JPanel foundStructurePanel = null;
+	private JPanel foundLinksPanel = null;
 	private JLabel label = null;
+	private JLabel label2 = null;
 	private JRadioButton allFilesRadioButton = null;
 	private JRadioButton theseFilesRadioButton = null;
 	private JRadioButton filesListRadioButton = null;
@@ -93,7 +106,8 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JButton stopButton = null;
 	private JmolPanel jmolPanel = null;
 	private JScrollPane jScrollPane = null;
-	private JList<String> foundInteractionsList = null;
+	private JScrollPane jScrollPane2 = null;
+	private JList<PdbId> foundStructuresWithInteractionsList = null;
 	private JTextArea outputTextArea = null;
 	private ButtonGroup buttonGroup=null;
 	private SettingsManager settingsManager;
@@ -106,7 +120,10 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JMenu importMenu;
 	private JMenuItem addResultsMenuItem;
 	private JMenuItem importNewCleanResultsMenuItem;
-	private JSplitPane splitPane;
+	private JSplitPane middleAndRightSplitPane;
+	private JSplitPane foundSplitPane;
+	private JSplitPane leftSplitPane;
+	private JList<BondListItem> foundLinksList;
 	
 	public ParsingUI() {
 		settingsManager= SettingsManager.getSettingsManager();  //  @jve:decl-index=0:
@@ -148,10 +165,10 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			BorderLayout bl_jContentPane = new BorderLayout();
 			bl_jContentPane.setHgap(5);
 			jContentPane.setLayout(bl_jContentPane);
-			jContentPane.add(getLeftPanel(), BorderLayout.WEST);
+//			jContentPane.add(getLeftPanel(), BorderLayout.WEST);
 //			jContentPane.add(getJPanel4(), BorderLayout.EAST);
 //			jContentPane.add(getJmolPanel(), BorderLayout.NORTH);
-			jContentPane.add(getSplitPane(), BorderLayout.CENTER);
+			jContentPane.add(getLeftSplitPane(), BorderLayout.CENTER);
 			
 		}
 		return jContentPane;
@@ -317,17 +334,34 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	 * 	
 	 * @return javax.swing.JPanel	
 	 */
-	private JPanel getLeftPanel() {
-		if (leftPanel == null) {
+	private JPanel getFoundStructurePanel() {
+		if (foundStructurePanel == null) {
 			label = new JLabel();
-			label.setText("Found");
-			leftPanel = new JPanel();
-			leftPanel.setLayout(new BoxLayout(getLeftPanel(), BoxLayout.Y_AXIS));
-			leftPanel.setPreferredSize(new Dimension(100, -1));
-			leftPanel.add(label, null);
-			leftPanel.add(getJScrollPane(), null);
+			label.setText("Found in");
+			foundStructurePanel = new JPanel();
+			foundStructurePanel.setLayout(new BoxLayout(foundStructurePanel, BoxLayout.Y_AXIS));
+			foundStructurePanel.setPreferredSize(new Dimension(100, -1));
+			foundStructurePanel.add(label, null);
+			foundStructurePanel.add(getJScrollPane(), null);
 		}
-		return leftPanel;
+		return foundStructurePanel;
+	}
+	/**
+	 * This method initializes jPanel	
+	 * 	
+	 * @return javax.swing.JPanel	
+	 */
+	private JPanel getFoundLinksPanel() {
+		if (foundLinksPanel == null) {
+			label2 = new JLabel();
+			label2.setText("Found links");
+			foundLinksPanel = new JPanel();
+			foundLinksPanel.setLayout(new BoxLayout(getFoundLinksPanel(), BoxLayout.Y_AXIS));
+			foundLinksPanel.setPreferredSize(new Dimension(100, -1));
+			foundLinksPanel.add(label2, null);
+			foundLinksPanel.add(getJScrollPane2(), null);
+		}
+		return foundLinksPanel;
 	}
 
 	/**
@@ -447,7 +481,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private void updateListTextFieldContent() {
 		String workingFolder = settingsManager.getWorkingFolder();
 		if (workingFolder== null) {
-			workingFolder="";
+			workingFolder=".";
 		}
 		listTextField.setText(workingFolder+File.separatorChar+"list.txt");
 	}
@@ -559,7 +593,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 							ProteinParser.moreWork = true;
 							startButton.setEnabled(false);
 							getStopButton().setEnabled(true);
-							((DefaultListModel<String>)getFoundInteractionsList().getModel()).clear();
+							((DefaultListModel<PdbId>)getFoundStructuresWithInteractionsList().getModel()).clear();
 							Scanner scanner = null;
 							ButtonModel selectionModel = getButtonGroup().getSelection();
 							try {
@@ -579,6 +613,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 //								parser.parseStructureNamesList(scanner);
 							}else {
 								parser.getPrintableStatistics();
+								//Then?
 							}
 							startButton.setEnabled(true);
 							getStopButton().setEnabled(false);
@@ -604,15 +639,17 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		}
 	}
 	
+
 	@Override
-	public void interactionsFoundInStructure(String token, String specificCollectionScriptString, Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> foundInteractions) {
-//		ParsingUI.this.foundInteractionsInFiles.put(token,foundInteractions);
-		((DefaultListModel<String>)getFoundInteractionsList().getModel()).addElement(token);
+	public void interactionsFoundInStructure(PdbId pdbId) {
+		JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
+		DefaultListModel<PdbId> model = (DefaultListModel<PdbId>)foundStructuresWithInteractionsList.getModel();
+		model.addElement(pdbId);
 		if (settingsManager.isShowWhileProcessing()) {
-			String generalViewingScript = ResultManager.generateJMolScriptString(token, specificCollectionScriptString, foundInteractions);
-			out.setEnabled(false);
-			getJmolPanel().executeCmd(generalViewingScript);
-			out.setEnabled(true);
+			//this should work in a multithreaded environment, because if 
+			//another thread added a new element, the new element should be 
+			//selected instead of this one
+			foundStructuresWithInteractionsList.setSelectedIndex(model.getSize() - 1); // this will fire event
 		}
 	}
 	
@@ -663,51 +700,90 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JScrollPane getJScrollPane() {
 		if (jScrollPane == null) {
 			jScrollPane = new JScrollPane();
-			jScrollPane.setViewportView(getFoundInteractionsList());
+			jScrollPane.setViewportView(getFoundStructuresWithInteractionsList());
 		}
 		return jScrollPane;
 	}
-
 	/**
-	 * This method initializes foundInteractionsList	
+	 * This method initializes jScrollPane2	
 	 * 	
-	 * @return javax.swing.JList	
+	 * @return javax.swing.JScrollPane	
 	 */
-	private JList<String> getFoundInteractionsList() {
-		if (foundInteractionsList == null) {
-			foundInteractionsList = new JList<String>(new DefaultListModel<String>());
-			foundInteractionsList.setFixedCellHeight(foundInteractionsList.getFont().getSize()+1);
-			foundInteractionsList.addListSelectionListener(new ListSelectionListener() {
+	private JScrollPane getJScrollPane2() {
+		if (jScrollPane2 == null) {
+			jScrollPane2 = new JScrollPane();
+			jScrollPane2.setViewportView(getFoundLinksList());
+		}
+		return jScrollPane2;
+	}
+	
+	/**
+	 * This method initializes foundStructuresWithInteractionsList	
+	 * 	
+	 * @return javax.swing.JList
+	 */
+	private JList<PdbId> getFoundStructuresWithInteractionsList() {
+		if (foundStructuresWithInteractionsList == null) {
+			foundStructuresWithInteractionsList = new JList<PdbId>(new DefaultListModel<PdbId>());
+			foundStructuresWithInteractionsList.setFixedCellHeight(foundStructuresWithInteractionsList.getFont().getSize()+1);
+			foundStructuresWithInteractionsList.addListSelectionListener(new ListSelectionListener() {
 				public void valueChanged(ListSelectionEvent e) {
-					try {
-						LocalPDBDirectory fileReader = null;
-						if(UserConfiguration.PDB_FORMAT.equals(settingsManager.getFileFormat())) {
-							fileReader = new PDBFileReader(); 
-						} else if(UserConfiguration.MMCIF_FORMAT.equals(settingsManager.getFileFormat())) {
-							fileReader = new CifFileReader(settingsManager.getPdbFilePath());
-						}
-//						pdbFileReader.setPdbDirectorySplit(settingsManager.getUserConfiguration().isSplit());
-						fileReader.setPath(settingsManager.getPdbFilePath());
-//						fileReader.setFetchBehavior(FetchBehavior.LOCAL_ONLY);
-						JmolPanel jmolPanel = getJmolPanel();
-						String token = (String) foundInteractionsList.getSelectedValue();
-						if (token != null) {
-							out.setEnabled(false);
-							jmolPanel.setStructure((fileReader.getStructureById(token)));
-							out.setEnabled(true);
-							String buffer = ResultManager.retrieveJMolScriptString(token);
+					if (foundStructuresWithInteractionsList.getSelectedIndices().length != 1)
+						return;
+					JmolPanel jmolPanel = getJmolPanel();
+					PdbId pdbId = foundStructuresWithInteractionsList.getSelectedValue();
+					
+					//N.B. You can replace the block below with ResultManager.generateFileLoadJMolScript(pdbId)
+					Structure structure = ResultManager.getStructureById(pdbId);
+					if(structure == null)
+						return;
+					out.setEnabled(false);
+					jmolPanel.setStructure(structure);
+					out.setEnabled(true);
+
+					String buffer = ResultManager.generateAfterLoadingJMolScriptString(pdbId);  //TODO review
 //							System.out.println("String To Evaluate is: "+buffer);
-							jmolPanel.executeCmd(buffer);
-						}
-					} catch (IOException e1) {
-						e1.printStackTrace();
+					jmolPanel.executeCmd(buffer);
+					//selecting a structure should populate the interactions list
+					//populate foundLinksList
+					List<String> bondsList = ResultManager.retreiveBondsList(pdbId);
+					BondListItem[] bondListItems = new BondListItem[bondsList.size()];
+					for (int i = 0; i < bondListItems.length; i++) {
+						bondListItems[i] = new BondListItem(bondsList.get(i));
 					}
+					getFoundLinksList().setSelectedIndices(NO_SELECTION);
+					getFoundLinksList().setListData(bondListItems);
 				}
+
+
 			});
 		}
-		return foundInteractionsList;
+		return foundStructuresWithInteractionsList;
 	}
 
+	private JList<BondListItem> getFoundLinksList() {
+		if (foundLinksList == null) {
+			foundLinksList = new JList<BondListItem>();
+			foundLinksList.addListSelectionListener(new ListSelectionListener() {
+				public void valueChanged(ListSelectionEvent e) {
+					//Selecting an interaction from the list should focus on it +/- show electron density
+					if (e.getValueIsAdjusting()|| foundLinksList.getSelectedIndices().length != 1)
+						return;
+					final String linkFullString = foundLinksList.getModel().getElementAt(foundLinksList.getSelectedIndex()).getFullString();
+//					System.out.println(linkFullString);
+					String linkSelectedJMolScriptString = ResultManager.generateLinkSelectedJMolScriptString(linkFullString);
+					jmolPanel.executeCmd(linkSelectedJMolScriptString);
+
+					//TODO complete
+					// create and execute bonds focusing (+/- ED Map showing) scripts
+//					ResultManager.decodeDrawSphereCommand(string);
+				}
+			});
+			foundLinksList.setFixedCellHeight(foundLinksList.getFont().getSize()+1);
+		}
+		return foundLinksList;
+	}
+	
 	/**
 	 * This method initializes outputTextArea	
 	 * 	
@@ -894,11 +970,11 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					}
 					if (scanner != null) {
 						if (clean) {
-							((DefaultListModel<String>) getFoundInteractionsList().getModel()).clear();
+							((DefaultListModel<PdbId>) getFoundStructuresWithInteractionsList().getModel()).clear();
 							//TODO clear the Jmolpanel too.
 							parser.initialize();
 						}
-						parser.parseResults(scanner);
+						parser.importResultsFile(scanner);
 					}
 					
 				}
@@ -907,14 +983,44 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			JOptionPane.showMessageDialog(jFrame,"Couldn't open File","ERROR",JOptionPane.ERROR_MESSAGE);
 		}
 	}
-	private JSplitPane getSplitPane() {
-		if (splitPane == null) {
-			splitPane = new JSplitPane();
-			splitPane.setOneTouchExpandable(true);
-			splitPane.setResizeWeight(1.0);
-			splitPane.setLeftComponent(getJmolPanel());
-			splitPane.setRightComponent(getJPanel4());
+	private JSplitPane getMiddleAndRightSplitPane() {
+		if (middleAndRightSplitPane == null) {
+			middleAndRightSplitPane = new JSplitPane();
+			middleAndRightSplitPane.setOneTouchExpandable(true);
+			middleAndRightSplitPane.setResizeWeight(1.0);
+			middleAndRightSplitPane.setLeftComponent(getJmolPanel());
+			middleAndRightSplitPane.setRightComponent(getJPanel4());
 		}
-		return splitPane;
+		return middleAndRightSplitPane;
 	}
+	
+	public void interactionSelected(String interaction) {
+		if (settingsManager.isShowWhileProcessing()) {
+			//TODO find script file
+//			String generalViewingScript = ResultManager.generateJMolScriptString(token, specificCollectionScriptString, foundInteractions);
+			String generalViewingScript = null;
+			out.setEnabled(false);
+			getJmolPanel().executeCmd(generalViewingScript);
+			out.setEnabled(true);
+		}
 	}
+	private JSplitPane getFoundSplitPane() {
+		if (foundSplitPane == null) {
+			foundSplitPane = new JSplitPane();
+			foundSplitPane.setResizeWeight(0.8);
+			foundSplitPane.setOrientation(JSplitPane.VERTICAL_SPLIT);
+			foundSplitPane.setTopComponent(getFoundStructurePanel());
+			foundSplitPane.setBottomComponent(getFoundLinksPanel());
+		}
+		return foundSplitPane;
+	}
+	private JSplitPane getLeftSplitPane() {
+		if (leftSplitPane == null) {
+			leftSplitPane = new JSplitPane();
+			leftSplitPane.setOneTouchExpandable(true);
+			leftSplitPane.setLeftComponent(getFoundSplitPane());
+			leftSplitPane.setRightComponent(getMiddleAndRightSplitPane());
+		}
+		return leftSplitPane;
+	}
+}

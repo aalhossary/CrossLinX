@@ -3,7 +3,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>corsslinx</artifactId>
-	<version>0.1.4</version>
+	<version>0.1.5</version>
 	<repositories>
 		<repository>
 			<id>local-maven-repo</id>
@@ -53,12 +53,12 @@
 		<dependency>
 			<groupId>org.biojava</groupId>
 			<artifactId>biojava-structure</artifactId>
-			<version>6.0.0</version>
+			<version>6.0.1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.biojava</groupId>
 			<artifactId>biojava-structure-gui</artifactId>
-			<version>6.0.0</version>
+			<version>6.0.1</version>
 		</dependency>
 		<!-- <dependency> <groupId>net.sourceforge.jmol</groupId> <artifactId>jmol</artifactId> 
 			<version>14.31.10</version> </dependency> -->

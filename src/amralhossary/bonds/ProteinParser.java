@@ -11,7 +11,6 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -19,11 +18,13 @@ import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
@@ -37,12 +38,15 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.biojava.nbio.structure.AminoAcid;
 import org.biojava.nbio.structure.Atom;
 import org.biojava.nbio.structure.AtomImpl;
+import org.biojava.nbio.structure.Bond;
+import org.biojava.nbio.structure.BondImpl;
 import org.biojava.nbio.structure.Calc;
 import org.biojava.nbio.structure.Chain;
 import org.biojava.nbio.structure.EntityInfo;
 import org.biojava.nbio.structure.Group;
 import org.biojava.nbio.structure.HetatomImpl;
 import org.biojava.nbio.structure.PDBHeader;
+import org.biojava.nbio.structure.PdbId;
 import org.biojava.nbio.structure.ResidueNumber;
 import org.biojava.nbio.structure.Site;
 import org.biojava.nbio.structure.Structure;
@@ -75,6 +79,7 @@ public class ProteinParser implements SettingListener{
 	private static final String ISOPEPTIDE_BONDS = "IsoPeptide Bonds";
 	private static final String NOS_Bonds        = "NOS Bonds";
 	private static final String NXS_Bonds        = "NxS Bonds (not known previously)";
+	private static final String CSO_WITH_MISSING_O = "CSO with missing O";
 	private static final String SUCCESSFULLY_PARSED_STRUCTURE_FILES = "successfully parsed structure files";
 	private static final String ATTEMPTED_FILES = "attempted files";
 	private static final String START_OF_STATISTICS = "=============== STATISTICS ===============";
@@ -511,9 +516,7 @@ public class ProteinParser implements SettingListener{
 		System.out.println("after calling parallel running");
 	}
 
-	public void parseResults(Scanner scanner) {
-		final String startOfStructurePrefix = ResultManager.START_OF_STRUCTURE_PREFIX;
-		final int tokenNamePosition = startOfStructurePrefix.length();
+	public void importResultsFile(Scanner scanner) {
 		File log=null;
 		try {
 			log = new File(settingsManager.getWorkingFolder(), "log.txt");
@@ -525,193 +528,128 @@ public class ProteinParser implements SettingListener{
 			System.err.println("couldn't create file ["+log.getAbsolutePath()+"] for output");
 			e.printStackTrace();
 		}
-//		Hashtable<String, Hashtable<String, HashSet<String>>> allPersistedInteractions= new Hashtable<String, Hashtable<String,HashSet<String>>>();
-
 		
-		int count=0;
-//		int aromaticAAOfInterestType;
+		parseFromScanner(scanner, true);
+//		totalFoundStructuresWithInteractions += allPersistedInteractions.keySet().size();
+//		System.out.println(getPrintableStatistics());
+	}
+	
+	public void parseFromScanner(Scanner scanner, boolean imported) {
+;		int count = 1;
+		final String startOfStructurePrefix = ResultManager.START_OF_STRUCTURE_PREFIX;
+		final int tokenNamePosition = startOfStructurePrefix.length();
 		while (scanner.hasNextLine() && moreWork) {
-			String line = scanner.nextLine()/*.trim()*/;
+			String line = scanner.nextLine().trim();
 			if (line.length()!= 0) {
 				// retrieving code here
 				if (line.startsWith(startOfStructurePrefix)) {
 					String token = line.substring(tokenNamePosition);
-					Hashtable<String, HashSet<String>> retreivedSetOfInteractions = ResultManager.retrieveSetOfInteractions(scanner);
-//					//update frequencies
-//					for (String sourceAA : retreivedSetOfInteractions.keySet()) {
-//						char ch=sourceAA.charAt(3);
-//						switch (ch) {
-//						case 'E':
-//							aromaticAAOfInterestType=GroupOfInterest.CODE_PHE;
-//							break;
-//						case 'R':
-//							aromaticAAOfInterestType=GroupOfInterest.CODE_TYR;
-//							break;
-//						case 'P':
-//							aromaticAAOfInterestType=GroupOfInterest.CODE_TRP;
-//							break;
-//
-//						default:
-//							throw new IllegalArgumentException("Unexpected Aminoacid");
-//						}
-////						updateFrequencies(aromaticAAOfInterestType, retreivedSetOfInteractions.get(sourceAA));
-//					}
-//
-//					//show a sign of life
-					if (count % 1000 == 0) {
-						System.out.println(count+" structures parsed");
+					int endIdx = token.length(), dotIdx = token.lastIndexOf('.');
+					if(dotIdx > 0)
+						endIdx = dotIdx;
+					final PdbId pdbId = new PdbId(token.substring(0, endIdx));
+					List<String> bonds = new ArrayList<>();
+					while (scanner.hasNextLine()) {
+						String bondString = (String) scanner.nextLine();
+						if(bondString.length() != 0) {
+							bonds.add(bondString);
+						} else {
+							//End of block. All bonds parsed.
+							//persist everything
+//								//1) Persist 
+//								//		a] file loading 
+//								//		b] file formatting 
+//								//		c] TODO (+/-) ED Map loading scripts
+//								//to a file (called when token is selected)
+//								ResultManager.exportFileLoadingScript(pdbId, ResultManager.createCacheFolderForToken(pdbId));
+							// 2) Persist list of bonds in a file.
+							ResultManager.persistBondsList(pdbId, bonds);
+							if (gui != null) {
+								//populate found interactions in structures
+								gui.interactionsFoundInStructure(pdbId);
+							}
+							bonds.clear();
+
+							if (count % 1000 == 0) {
+								System.out.println(count+" structures parsed");
+							}
+							break;
+						}
 					}
-//					//put it in cubes, 
-//					allPersistedInteractions.put(token, retreivedSetOfInteractions);
-					if (gui != null) {
-						settingsManager.setShowWhileProcessing(false);//this line is important in order not to throw a NullPointerException on the next line
-						gui.interactionsFoundInStructure(token, null, null);
+					if (bonds.size() > 0) {
+						ResultManager.persistBondsList(pdbId, bonds);
+						if (gui != null) {
+							//populate found interactions in structures
+							gui.interactionsFoundInStructure(pdbId);
+						}
 					}
+					//note that selecting a structure should populate the interactions list
+					//and selecting an interaction from the list should focus on it +/- show electron density
+
 					count++;
-				}else if (line.startsWith(ProteinParser.START_OF_STATISTICS)) {
-//					System.out.println("Parsed "+count+" structures. Please wait...");
-//					while (scanner.hasNextLine() && moreWork) {
-//						line=scanner.nextLine();
-//						if (line.contains("%")) {
-//							continue;//this is a derived value
-//						}
-//						final int indexOfSeparator = line.indexOf('\t');
-//						if (indexOfSeparator>0) {
-//							long value = Long.parseLong(line.substring(0, indexOfSeparator));
-//							String key = line.substring(indexOfSeparator+1);
-//							switch (key) {
-//							case ATTEMPTED_FILES:
-//								attemptedPDBFiles += value;
-//								break;
-//							case SUCCESSFULLY_PARSED_STRUCTURE_FILES:
-//								successfullyParsedStructures += value;
-//								break;
-//							case FAILS:
-//								failedToParseStructure += value;
-//								break;
-//							case EMPTY_FILES:
-//								 emptyFiles+= value;
-//								break;
-//							case CHAINS_PARSED:
-//								 chainsParsed+= value;
-//								break;
-//							case CHAINS_SKIPPED:
-//								 chainsSkipped+= value;
-//								break;
-//							case CHAINS_NOT_FOUND:
-//								 chainsNotFound+= value;
-//								break;
-//							case AMINO_ACIDS_FOUND:
-//								 foundAminoAcids+= value;
-//								break;
-//							case HET_GROUPS_FOUND:
-//								 foundHetGroups+= value;
-//								break;
+				} else if (line.startsWith(ProteinParser.START_OF_STATISTICS)) {
+					System.out.println("Parsed "+count+" structures. Please wait...");
+					while (scanner.hasNextLine() && moreWork) {
+						line=scanner.nextLine();
+						if (line.contains("%")) {
+							continue;//this is a derived value
+						}
+						final int indexOfSeparator = line.indexOf('\t');
+						if (indexOfSeparator > 0) {
+							long value = Long.parseLong(line.substring(0, indexOfSeparator));
+							String key = line.substring(indexOfSeparator+1);
+							switch (key) {
+							case ATTEMPTED_FILES:
+								attemptedPDBFiles += value;
+								break;
+							case SUCCESSFULLY_PARSED_STRUCTURE_FILES:
+								successfullyParsedStructures += value;
+								break;
+							case FAILS:
+								failedToParseStructure += value;
+								break;
+							case EMPTY_FILES:
+								 emptyFiles+= value;
+								break;
+							case CHAINS_PARSED:
+								 chainsParsed+= value;
+								break;
+							case CHAINS_SKIPPED:
+								 chainsSkipped+= value;
+								break;
+							case CHAINS_NOT_FOUND:
+								 chainsNotFound+= value;
+								break;
+							case AMINO_ACIDS_FOUND:
+								 foundAminoAcids+= value;
+								break;
+							case HET_GROUPS_FOUND:
+								 foundHetGroups+= value;
+								break;
+							case AMINO_ACIDS_FAILED:
+								 failedToParseAminoAcids+= value;
+								break;
+							case TOTAL_STRUCTURES_WITH_INTERACTIONS:
+								 totalFoundStructuresWithInteractions+= value;
+								break;
 //							case ATOMS_NOT_FOUND:
-//								 missingAtoms+= value;
+//								missingAtoms+= value;
 //								break;
-//							case AMINO_ACIDS_FAILED:
-//								 failedToParseAminoAcids+= value;
-//								break;
-//							case TOTAL_STRUCTURES_WITH_INTERACTIONS:
-//								 totalFoundStructuresWithInteractions+= value;
-//								break;
-//							case TOTAL_FOUND_PHE:
-//								 totalFoundPhe+= value;
-//								 long pheNotInInteractions=totalFoundPhe-pheInInteractions;
-//								break;
-//							case TOTAL_FOUND_TYR:
-//								 totalFoundTyr+= value;
-//								 long tyrNotInInteractions=totalFoundTyr-tyrInInteractions;
-//								break;
-//							case TOTAL_FOUND_TRP:
-//								 totalFoundTrp+= value;
-//								 long trpNotInInteractions=totalFoundTrp-trpInInteractions;
-//								break;
-//							case TOTAL_FOUND_ARG:
-//								 totalFoundArg+= value;
-//								break;
-//							case TOTAL_FOUND_LYC:
-//								 totalFoundLyc+= value;
-//								break;
-//							case TOTAL_FOUND_GLU:
-//								 totalFoundGlu+= value;
-//								break;
-//							case TOTAL_FOUND_ASP:
-//								 totalFoundAsp+= value;
-//								break;
-//							case TOTAL_FOUND_HET_GROUPS_OF_INTEREST:
-//								 totalFoundHetGroupsOfInterest+= value;
-//								break;
-//							case ISOPEPTIDE_BONDS:
-//								 pheInInteractions+= value;
-//								break;
-//							case NOS_Bonds:
-//								 tyrInInteractions+= value;
-//								break;
-//							case TRP_IN_INTERACTIONS:
-//								 trpInInteractions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_PHE_ARG:
-//								phe_arg_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_PHE_LYC:
-//								phe_lyc_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_PHE_ASP:
-//								phe_asp_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_PHE_GLU:
-//								phe_glu_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_PHE_VE_HET_ATOMS:
-//								phe_hetGroup_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TYR_ARG:
-//								tyr_arg_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TYR_LYC:
-//								tyr_lyc_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TYR_ASP:
-//								tyr_asp_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TYR_GLU:
-//								tyr_glu_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TYR_VE_HET_ATOMS:
-//								tyr_hetGroup_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TRP_ARG:
-//								trp_arg_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TRP_LYC:
-//								trp_lyc_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TRP_ASP:
-//								trp_asp_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TRP_GLU:
-//								trp_glu_interactions+= value;
-//								break;
-//							case FOUND_INTERACTIONS_BETWEEN_TRP_VE_HET_ATOMS:
-//								trp_hetGroup_interactions+= value;
-//								break;								
-//							default:
-//								//unknown , ignore
-//								break;
-//							}
-//						}
-//					}
+							case ISOPEPTIDE_BONDS:
+								 isopeptideBonds+= value;
+								break;
+							case NOS_Bonds:
+								 NOSBonds+= value;
+								break;
+							default:
+								//unknown , ignore
+								break;
+							}
+						}
+					}
 				}
 			}
 		}
-//		totalFoundStructuresWithInteractions += allPersistedInteractions.keySet().size();
-		if (gui != null) {
-			gui.showResults(null);
-		}
-		
-//		System.out.println(getPrintableStatistics());
 	}
 
 	void fixStartTime() {
@@ -777,43 +715,38 @@ public class ProteinParser implements SettingListener{
 	public boolean parseStructure(String token, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
 		boolean chainsInStructureParsedSuccessfully = parseChainsInStructure(token, cubes, logStringBuilder);
 		if (chainsInStructureParsedSuccessfully) {
-			Hashtable<String, String> scriptCollectionBuffer = new Hashtable<String, String>();
-			Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> foundInteractions = findInteractionsInCubes(scriptCollectionBuffer, cubes, logStringBuilder);
-
-			Collection<String> encodedScripts = scriptCollectionBuffer.values();
-			StringBuilder builder= new StringBuilder();
-			for (Iterator<String> iterator = encodedScripts.iterator(); iterator.hasNext();) {
-				String string = (String) iterator.next();
-				builder.append(string);
-//				builder.append(System.lineSeparator());
-			}
-			String specificCollectionScriptString = builder.toString();
+			Map<GroupOfInterest, Set<Bond>> foundInteractions = findInteractionsInCubes(cubes, logStringBuilder);
 			
 			if (foundInteractions.size() > 0){
 				totalFoundStructuresWithInteractions++;
-				if(gui != null) {
-					gui.interactionsFoundInStructure(token, specificCollectionScriptString, foundInteractions);
+				// convert foundInteractions into listofDetailedConnectionsAsString (with coords)
+				Set<Bond> allBonds = new LinkedHashSet<Bond>();
+				Iterator<Set<Bond>> bondsIterator = foundInteractions.values().iterator();
+				while(bondsIterator.hasNext()) {
+					Set<Bond> bonds = bondsIterator.next();
+					allBonds.addAll(bonds);
 				}
+				String listofDetailedConnectionsAsString = ResultManager.createListofConnectionsAsString(allBonds);				
 				
-				String listofConnectionsAsString = ResultManager.persistInteractionsHashTable(token,specificCollectionScriptString, foundInteractions);
-//						ResultManager.createListofConnectionsAsString(foundInteractions);
-				logStringBuilder.append(listofConnectionsAsString).append('\n');
+				//log it to positiveresults.txt
+				StringBuilder stringForParsablePositiveResultsFileSB = new StringBuilder(ResultManager.START_OF_STRUCTURE_PREFIX).append(token).append(System.getProperty("line.separator"));
+				stringForParsablePositiveResultsFileSB.append(listofDetailedConnectionsAsString);
+				String stringForParsablePositiveResultsFile = stringForParsablePositiveResultsFileSB.toString();
+				this.out.println(stringForParsablePositiveResultsFile);
 
-				StringBuilder stringForBrendan = new StringBuilder(ResultManager.START_OF_STRUCTURE_PREFIX).append(token).append(System.getProperty("line.separator"));
-				stringForBrendan.append(listofConnectionsAsString);
-				this.out.println(stringForBrendan.toString());
-
-				//export
-				int endIdx = token.length(), dotIdx = token.lastIndexOf('.');
-				if(dotIdx > 0)
-					endIdx = dotIdx;
-				ResultManager.exportFileToScript(token.substring(0, endIdx), new File(settingsManager.getWorkingFolder(), "EXPORTED").getPath(), specificCollectionScriptString);
+				//reduce the string by removing atom coordinates ==> xxxxxxxxNoCoords
+				String listofConnectionsAsStringNoCoords = ResultManager.removeAtomCoords(listofDetailedConnectionsAsString);
+				// show it to the user and in log
+				logStringBuilder.append(listofConnectionsAsStringNoCoords).append('\n');
+				//note that ResultManager.removeAtomCoords() is called in parseFromScanner() as well.
+				
+				//parse listofDetailedConnectionsAsString
+				parseFromScanner(new Scanner(stringForParsablePositiveResultsFile), false);
 			}
 			return true;
 		}
 		return false;
 	}
-
 
 	boolean parseChainsInStructure(String token, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
 		this.attemptedPDBFiles++;
@@ -873,24 +806,15 @@ public class ProteinParser implements SettingListener{
 	}
 
 	/**
-	 * This method finds interactions and report its output in an awkward way:
-	 * <ul>
-	 * <li>It returns Hashtable <{@link GroupOfInterest}, {@link HashSet}<{@link GroupOfInterest}></li>
-	 * <li>It fills thePassed-in scriptCollectionBuffer with Jmol script</li>
-	 * </ul>
+	 * This method finds interactions and report its output in an Map <{@link GroupOfInterest}, {@link Set}<{@link Bond}>.
 	 * Additionally, all log text is collected via logStringBuilder, in order not to mix with other threads.
-	 * @param scriptCollectionBuffer
 	 * @param cubes
 	 * @param logStringBuilder
 	 * @return
 	 */
-	Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> findInteractionsInCubes(
-			Hashtable<String, String> scriptCollectionBuffer, 
-			Hashtable<String, ArrayList<GroupOfInterest>> cubes,
-			StringBuilder logStringBuilder) {
-		
-		Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> foundInteractions = new Hashtable<>();
-//		Hashtable<String, ArrayList<GroupOfInterest>> cubes = ProteinParser.cubes;
+	Map<GroupOfInterest, Set<Bond>> findInteractionsInCubes(Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
+
+		Hashtable<GroupOfInterest, Set<Bond>> foundInteractions = new Hashtable<>();
 		
 		for (int op = 0; moreWork && op < operations.length; op += 4) {
 			String sourceSuffix = operations[op];
@@ -918,36 +842,34 @@ public class ProteinParser implements SettingListener{
 				}
 				String destCubeBaseName=null;
 				
-				HashSet<GroupOfInterest> tempInteractingGroupsOfInterest = new HashSet<>(); //to decrease frequency of unnecessary objects creation
+				HashSet<Bond> tempInteractions = new LinkedHashSet<>(); //to decrease frequency of unnecessary objects creation
 				for (int ai = 0; ai < residue1List.size(); ai++) {
 					GroupOfInterest residue1 = (GroupOfInterest) residue1List.get(ai);
 					for (int i = x-1; i <=x+1 ; i++) {
 						for (int j = y-1; j <= y+1; j++) {
 							for (int k = z-1; k <= z+1 ; k++) {
 								destCubeBaseName= i+"|"+j+"|"+k;
-								HashSet<GroupOfInterest> interactingGroupsOfInterest = foundInteractions.get(residue1);
-								if (interactingGroupsOfInterest == null) {
-									interactingGroupsOfInterest = tempInteractingGroupsOfInterest;
+								Set<Bond> interactions = foundInteractions.get(residue1);
+								if (interactions == null) {
+									interactions = tempInteractions;
 								}
 								ArrayList<GroupOfInterest> destCubeOfGroupsOfInterest = cubes.get(destCubeBaseName+"|"+targetSuffix);
 								if (destCubeOfGroupsOfInterest == null)
 									continue;
 								for (GroupOfInterest residue2 : destCubeOfGroupsOfInterest) {
-									//I removed this line on purpose, to see if 2 residues are linked using more than one bond.
-									if (interactingGroupsOfInterest.contains(residue2)) {
-										continue;
-									}
-									boolean confirmedLink = confirmLink(residue1, residue2, operation, subOperation, scriptCollectionBuffer);
+//									//I removed this line on purpose, to see if 2 residues are linked using more than one bond of the same type.
+//									if (interactions.contains(residue2)) {//TODO change
+//										continue;
+//									}
+									boolean confirmedLink = confirmLink(residue1, residue2, operation, subOperation, interactions);
 
 									if (confirmedLink) {
-										//				outputCsv(residue1, destGroupOfInterest, operation, subOperation);
-										interactingGroupsOfInterest.add(residue2);
 										break;
 									}					
 								}
-								if (interactingGroupsOfInterest.size() > 0) {
-									foundInteractions.put(residue1, interactingGroupsOfInterest);
-									tempInteractingGroupsOfInterest = new HashSet<GroupOfInterest>();
+								if (interactions.size() > 0) {
+									foundInteractions.put(residue1, interactions);
+									tempInteractions = new LinkedHashSet<>();
 								}
 							}
 						}
@@ -1088,8 +1010,9 @@ public class ProteinParser implements SettingListener{
 		return null;
 	}
 
-	private boolean confirmLink(GroupOfInterest group1, GroupOfInterest group2, String operation, String subOperation, Hashtable<String, String> scriptCollectionBuffer) {
+	private boolean confirmLink(GroupOfInterest group1, GroupOfInterest group2, String operation, String subOperation, Set<Bond> interactions) {
 		//check the group type and set parameters and output list
+		@SuppressWarnings("unused")
 		float cutoff, cutoff2;
 		Atom[] atoms1=null, atoms2=null;
 		
@@ -1120,7 +1043,7 @@ public class ProteinParser implements SettingListener{
 			cutoff = 2.1f;
 			cutoff2= 4.41f;
 			if (atoms2[0] == null) {
-				return confirmLink(group1, group2, NXS_BOND, "CSO with missing O", scriptCollectionBuffer);
+				return confirmLink(group1, group2, NXS_BOND, CSO_WITH_MISSING_O, interactions);
 			}
 		}else if (operation == ESTER_BOND) {
 			atoms1 = group1.getKeyOAtoms();
@@ -1158,7 +1081,7 @@ public class ProteinParser implements SettingListener{
 			return false;
 		}
 		boolean confirmed = false;
-		for (int i = 0; !confirmed && i < atoms1.length; i++) {
+outer:		for (int i = 0; !confirmed && i < atoms1.length; i++) {
 			Atom atom1 = atoms1[i];
 			if(atom1 == null)
 				continue;
@@ -1166,17 +1089,30 @@ public class ProteinParser implements SettingListener{
 				Atom atom2 = atoms2[j];
 				if(atom2 == null)
 					continue;
+				
+				if(alreadyReported(atom1, atom2, interactions))
+					continue;
+				
+				
 				double distanceSquared = Calc.getDistanceFast(atom1, atom2);
 				if (distanceSquared <= cutoff2) {
-					String name = "Res" + group1.getResidueNumber().getSeqNum() + "_"+ group1.getChain().getName();
-					String value = ResultManager.encodeDrawSphereCommand(name, atom2.getCoords(), cutoff);
-					scriptCollectionBuffer.put(name, value);
 					confirmed = true;
+					interactions.add(new BondImpl(atom1, atom2, 1, false));
 					outputTsv(atom1, atom2, Math.sqrt(distanceSquared), operation, subOperation);
+					break outer;
 				}
 			}
 		}
 		return confirmed;
+	}
+
+	private boolean alreadyReported(Atom atom1, Atom atom2, Set<Bond> interactions) {
+		for (Iterator<Bond> iterator = interactions.iterator(); iterator.hasNext();) {
+			Bond bond = iterator.next();
+			if(atom1 == bond.getAtomA() && atom2 == bond.getAtomB())
+				return true;
+		}
+		return false;
 	}
 
 	/**
@@ -1185,6 +1121,7 @@ public class ProteinParser implements SettingListener{
 	 * @param cubes
 	 * @param logStringBuilder
 	 */
+	@SuppressWarnings("unused")
 	@Deprecated
 	private void parseChain_old(Chain chain, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
 		logStringBuilder.append("parsing chain ").append(chain.getName()).append('\n');

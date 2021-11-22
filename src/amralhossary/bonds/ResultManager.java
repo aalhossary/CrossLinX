@@ -9,9 +9,11 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -19,7 +21,14 @@ import java.util.regex.Pattern;
 
 import org.biojava.nbio.structure.AminoAcid;
 import org.biojava.nbio.structure.Atom;
+import org.biojava.nbio.structure.Bond;
+import org.biojava.nbio.structure.Group;
+import org.biojava.nbio.structure.PdbId;
+import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.align.util.UserConfiguration;
+import org.biojava.nbio.structure.io.CifFileReader;
+import org.biojava.nbio.structure.io.LocalPDBDirectory;
+import org.biojava.nbio.structure.io.PDBFileReader;
 import org.jmol.api.JmolViewer;
 
 /** //TODO remember to declare files failed to parse in results log file and retrieving them when parsing it 
@@ -27,209 +36,191 @@ import org.jmol.api.JmolViewer;
  *
  */
 public class ResultManager {
-	public static final int FREQUENCY_DISTANCE = 25;
 	private static final String SPHERE_KEYWORD = "sphere";
-//	private static final String ELLIPSOID_KEYWORD = "ellipsoid";
 
 	public static final String GENERAL_SELECTION_SCRIPT = "set logLevel 0; select *;wireframe on;color cpk;\n"+
 			"set showHydrogens false; set selectHydrogen off;"+
-			"SELECT (PHE OR TYR OR TRP OR LYS OR ARG OR GLU OR ASP) AND SIDECHAIN;"+
+//			"SELECT (PHE OR TYR OR TRP OR LYS OR ARG OR GLU OR ASP) AND SIDECHAIN;"+
 			"spacefill 23%AUTO;wireframe 0.15;color cpk;\n";
 
 	private static final String INTERACTION_SEPARATOR = " \t-> ";
 	public static final String CACHE_RESULT_FOLDER = "temp/cashe";
 	public static final String START_OF_STRUCTURE_PREFIX = "in structure#";
-	public static final String FILED_TO_PARSE_AMINOACID = "##Filed to Parse ";
+	public static final String FAILED_TO_PARSE_AMINOACID = "##Failed to Parse ";
 
 	private static SettingsManager settingsManager = SettingsManager.getSettingsManager();
 
-	/**This function creates the list of connections to be persisted (cached), already 
-	 * saves it along with other specific select/ellipsoid commands. 
-	 * and returns the list of connections string to be used else where.
-	 * @param token
-	 * @param specificCollectionScriptString
-	 * @param foundInteractions
-	 * @return the listofConnectionsAsString if succeeded, null otherwise.
-	 */
-	public static String persistInteractionsHashTable(String token, String specificCollectionScriptString, Hashtable<GroupOfInterest,HashSet<GroupOfInterest>> foundInteractions) {
-		String listofConnectionsAsString = createListofConnectionsAsString(foundInteractions);
-		try {
-			File filecacheFile = createCacheFileNameForToken(token);
-			FileWriter fileWriter = new FileWriter(filecacheFile);
-			fileWriter.append(specificCollectionScriptString);
-			fileWriter.append(listofConnectionsAsString);
-			fileWriter.close();
-			return listofConnectionsAsString;
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return null;
+	public static File createCacheFolderForToken(PdbId pdbId) {
+		int offset = pdbId.getId().length() - 3;
+		String hash = pdbId.getId().substring(offset, offset+2);
+		File cacheFolder = new File(settingsManager.getWorkingFolder(), CACHE_RESULT_FOLDER + "/" + hash);
+		cacheFolder.mkdirs();
+		return cacheFolder;
 	}
-	public static Hashtable<String, HashSet<String>> retrieveSetOfInteractions(Scanner scanner) {
 
-		Hashtable<String, HashSet<String>> interactions= new Hashtable<String, HashSet<String>>();
-		while (scanner.hasNextLine()) {
-			final String nextLine = scanner.nextLine();
-			if (nextLine.length() > 0) {
-				if (nextLine.startsWith("[")) {//this condition is unnecessary
-					//interactions
-					decodeInteractioString(nextLine, interactions);
-				} else {
-					throw new RuntimeException("unknown or unexpected format: "+nextLine);
-				}
-			} else {
-				return interactions;
+//	/**
+//	 * @param token
+//	 * @param specificCollectionScriptString 
+//	 * @param foundInteractions
+//	 * @return
+//	 * @deprecated Update according to new parameters, and update decodeDrawSphereCommand to ellipse
+//	 */
+//	static String generateJMolScriptString(String token, String specificCollectionScriptString, Map<GroupOfInterest, Set<Bond>> foundInteractions) {
+//		StringBuffer buffer = new StringBuffer();
+//		buffer.append(GENERAL_SELECTION_SCRIPT);
+//		//add spheres
+//		String[] lines =specificCollectionScriptString.split("\r?\n");
+//		for (String line : lines) {
+//			if (line.startsWith(SPHERE_KEYWORD) && settingsManager.isDomainEnabled()) {
+//				buffer.append(decodeDrawSphereCommand(line));
+//			}
+//		}
+//		//			buffer.append("restrict bonds not selected;");
+//
+//		buffer.append("SELECT (");
+//		
+//		Set<GroupOfInterest> lysines = foundInteractions.keySet();
+//		for (GroupOfInterest lysine : lysines) {
+//			addResidueToSelectionStringBuffer(buffer,lysine);
+//			Set<GroupOfInterest> set = foundInteractions.get(lysine);
+//			for (GroupOfInterest interactionTarget : set) {
+//				addResidueToSelectionStringBuffer(buffer,interactionTarget);
+//			}
+//		}
+//		buffer.append("FALSE) ;");//wanted Atoms
+//		buffer.append("spacefill 65%;color cpk;");//space fill
+//		//			buffer.append("selectionHalos ON;");
+//		return buffer.toString();
+//	}
+
+
+	public static Structure getStructureById(PdbId pdbId) {
+		try {
+			LocalPDBDirectory fileReader = null;
+			if(UserConfiguration.PDB_FORMAT.equals(settingsManager.getFileFormat())) {
+				fileReader = new PDBFileReader(settingsManager.getPdbFilePath()); 
+			} else if(UserConfiguration.MMCIF_FORMAT.equals(settingsManager.getFileFormat())) {
+				fileReader = new CifFileReader(settingsManager.getPdbFilePath());
 			}
+//			fileReader.setFetchBehavior(settingsManager.isAutoFetch());
+			return fileReader.getStructureById(pdbId);
+		} catch (IOException e1) {
+			e1.printStackTrace();
+			return null;
 		}
-		return null;
+	}
+
+	
+	/**
+	 * Should be responsible for
+	 * a] file formatting 
+	 * b] TODO (+/-) ED Map loading scripts
+	 * 
+	 * please notice that if {@link #createInteractionString(AminoAcid)} changed, this method <b>MUST be updated</b>
+	 * @param token
+	 * @return
+	 */
+	public static String generateAfterLoadingJMolScriptString(PdbId pdbId) {
+		//TODO update decodeDrawSphereCommand to ellipse
+		StringBuffer buffer = new StringBuffer();
+		buffer.append(GENERAL_SELECTION_SCRIPT);
+
+		Set<String> interactingAtoms= new HashSet<String>();
+		int separatorIndex;
+		List<String> bondsList = retreiveBondsList(pdbId);
+		if (bondsList == null) {
+			return null;
+		}
+
+		//find interacting residues / atoms without duplicity
+		for (String bondString : bondsList) {
+			separatorIndex = bondString.indexOf(INTERACTION_SEPARATOR);
+			String leftSide=bondString.substring(0, separatorIndex);
+			String rightSide=bondString.substring(separatorIndex+INTERACTION_SEPARATOR.length()); //,line.indexOf('('));
+			interactingAtoms.add(leftSide);
+			interactingAtoms.add(rightSide);
+		}
+		
+		//augment interacting residues / atoms
+		if (interactingAtoms.size()>0) {
+			buffer.append("SELECT (");
+			String[] interactingAtomsArray = interactingAtoms.toArray(new String[] {});
+			for (int i = 0; i < interactingAtomsArray.length; i++) {
+				String interactingAtom = interactingAtomsArray[i];
+//				int indexOfClosingSquareBracket = interactingAtom.indexOf(']');
+				int indexOfColon = interactingAtom.indexOf(':');
+				int indexOfDot = interactingAtom.indexOf('.', indexOfColon);
+
+//				String residueNumber = interactingAtom.substring(indexOfClosingSquareBracket+1,indexOfColon);
+//				String chainId = interactingAtom.substring(indexOfColon+1, indexOfDot);
+//				buffer.append("(resno = ").append(Integer.parseInt(residueNumber)).append(" AND chain = ").append(chainId);
+////				buffer.append(" AND SIDECHAIN ");
+//				buffer.append(")");
+				final String residueDefinition = interactingAtom.substring(0, indexOfDot);
+				buffer.append(residueDefinition);
+				if (i < interactingAtomsArray.length -1) {
+					buffer.append(" OR ");
+				}
+//				String atomList = interactingAtom.substring(indexOfOpeningPracket+1,interactingAtom.indexOf('}'));
+//				String[] splits = atomList.split(",");
+//				if (splits != null && splits.length>0) {
+//					buffer.append('(');
+//					for (int i = 0; i < splits.length; i++) {
+//						buffer.append(" atomno = ").append(splits[i].substring(splits[i].indexOf('|')+1));
+//						if (i < splits.length - 1) {
+//							buffer.append(" OR ");
+//						}
+//					}
+//					buffer.append(") OR ");
+//				}
+			}
+			buffer.append(" );");//wanted Atoms
+			//make the whole residue sticks.
+			buffer.append("wireframe 0.3 only;color cpk;\n");
+			
+			//Then make the interacting atoms spacefill and/or show ED map
+			buffer.append("SELECT (");
+			for (int i = 0; i < interactingAtomsArray.length; i++) {
+				String atomExpressionAndCoords = interactingAtomsArray[i];
+				int indexOfOpeningPracket = atomExpressionAndCoords.indexOf('{'); // atom coordinates
+				String atomExpression = atomExpressionAndCoords.substring(0, indexOfOpeningPracket);
+				
+				buffer.append(atomExpression);
+				if (i < interactingAtomsArray.length -1) {
+					buffer.append(" OR ");
+				}
+			}
+			buffer.append(");");//wanted Atoms
+			//make the whole residue sticks.
+			buffer.append("spacefill 75%;color cpk;\n");//space fill
+
+			//TODO complete by writing the Electron density map fetching and showing code
+//				int indexOfOpeningPracket = interactingAtom.indexOf('{'); // atom coordinates
+//				int indexOfClosingPracket = interactingAtom.indexOf('}'); // atom coordinates
+		}
+		return buffer.toString();
 	}
 	
-	private static File createCacheFileNameForToken(String token) {
-		File cacheFolder = new File(settingsManager.getWorkingFolder(), CACHE_RESULT_FOLDER);
-		cacheFolder.mkdirs();
-		return new File(cacheFolder, token);
-	}
-
-	/**
-	 * @param token
-	 * @param specificCollectionScriptString 
-	 * @param foundInteractions
-	 * @return
-	 */
-	static String generateJMolScriptString(String token, String specificCollectionScriptString, Hashtable<GroupOfInterest,HashSet<GroupOfInterest>> foundInteractions) {
-		StringBuffer buffer = new StringBuffer();
-		buffer.append(GENERAL_SELECTION_SCRIPT);
-		//add spheres
-		String[] lines =specificCollectionScriptString.split("\r?\n");
-		for (String line : lines) {
-			if (line.startsWith(SPHERE_KEYWORD) && settingsManager.isDomainEnabled()) {
-				buffer.append(decodeDrawSphereCommand(line));
-			}
-		}
-		//			buffer.append("restrict bonds not selected;");
-
-		buffer.append("SELECT (");
+	
+	public static String generateLinkSelectedJMolScriptString(String linkFullString) {
 		
-		Set<GroupOfInterest> lysines = foundInteractions.keySet();
-		for (GroupOfInterest lysine : lysines) {
-			addResidueToSelectionStringBuffer(buffer,lysine);
-			Set<GroupOfInterest> set = foundInteractions.get(lysine);
-			for (GroupOfInterest interactionTarget : set) {
-				addResidueToSelectionStringBuffer(buffer,interactionTarget);
-			}
-		}
-		buffer.append("FALSE) ;");//wanted Atoms
-		buffer.append("spacefill 65%;color cpk;");//space fill
-		//			buffer.append("selectionHalos ON;");
-		return buffer.toString();
-	}
-
-
-	/**please notice that if {@link #createInteractionString(AminoAcid, AminoAcid)} changed, this method <b>MUST be updated</b>
-	 * @param token
-	 * @return
-	 */
-	public static String retrieveJMolScriptString(String token) {
+		int separatorIndex = linkFullString.indexOf(INTERACTION_SEPARATOR);
+		String leftSide = linkFullString.substring(0, separatorIndex);
+		String rightSide = linkFullString.substring(separatorIndex+INTERACTION_SEPARATOR.length()); //,line.indexOf('('));
+//		String atom1 = leftSide.substring(0, leftSide.indexOf('{'));
+//		String atom2 = rightSide.substring(0, rightSide.indexOf('{'));
+		String residue1 = leftSide.substring(0, leftSide.indexOf('.'));
+		String residue2 = rightSide.substring(0, rightSide.indexOf('.'));
+		
 		StringBuffer buffer = new StringBuffer();
-		//		buffer.append("select *;wireframe on;color cpk;\n");
-		//		buffer.append("SELECT (PHE OR TYR OR TRP OR LYS OR ARG) AND SIDECHAIN;");
-		//		buffer.append("spacefill 23%AUTO;wireframe 0.15;color cpk;\n");
-		buffer.append(GENERAL_SELECTION_SCRIPT);
-
-		try {
-			Set<String> collectedAminoAcids= new HashSet<String>();
-			Scanner scanner = new Scanner(createCacheFileNameForToken(token));
-			int separatorIndex;
-			while (scanner.hasNext()) {
-				String line = scanner.nextLine().trim();
-				//find residues without duplicity
-				if (line.length()>0) {
-					if (line.startsWith("[")) {
-						separatorIndex = line.indexOf(INTERACTION_SEPARATOR);
-						String leftSide=line.substring(0, separatorIndex);
-						String rightSide=line.substring(separatorIndex+INTERACTION_SEPARATOR.length()); //,line.indexOf('('));
-						collectedAminoAcids.add(leftSide);
-						collectedAminoAcids.add(rightSide);
-					} else if (line.startsWith(SPHERE_KEYWORD) && settingsManager.isDomainEnabled()) {
-						buffer.append(decodeDrawSphereCommand(line));
-					}
-				}
-			}
-
-			buffer.append("SELECT (");
-			if (collectedAminoAcids.size()>0) {
-				for (String aaRepresentation: collectedAminoAcids) {
-					int indexOfClosingSquareBracket = aaRepresentation.indexOf(']');
-					int indexOfColon = aaRepresentation.indexOf(':');
-					String residueNumber = aaRepresentation.substring(indexOfClosingSquareBracket+1,indexOfColon);
-					int indexOfOpeningPracket = aaRepresentation.indexOf('{');
-					if (indexOfOpeningPracket> -1) {//if there are specific atoms
-						String atomList = aaRepresentation.substring(indexOfOpeningPracket+1,aaRepresentation.indexOf('}'));
-						String[] splits = atomList.split(",");
-						if (splits != null && splits.length>0) {
-							buffer.append('(');
-							for (int i = 0; i < splits.length; i++) {
-								buffer.append(" atomno = ").append(splits[i].substring(splits[i].indexOf('|')+1));
-								if (i < splits.length - 1) {
-									buffer.append(" OR ");
-								}
-							}
-							buffer.append(") OR ");
-						}
-					}else{
-						String chainId = aaRepresentation.substring(indexOfColon+1);
-						addResidueToSelectionStringBuffer(buffer, Integer.parseInt(residueNumber),chainId);
-					}
-				}
-			}
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		}
-		buffer.append("FALSE);");//wanted Atoms
-		buffer.append("spacefill 75%;color cpk;");//space fill
+		buffer.append("zoom 0;\n");
+		buffer.append("zoomto { ").append(residue1).append(" or ").append(residue2).append(" };\n");
 		return buffer.toString();
 	}
 
 
-	private static void addResidueToSelectionStringBuffer(StringBuffer buffer, GroupOfInterest groupOfInterest) {
-		if (groupOfInterest instanceof HetGroupOfInterest) {
-//			addAtomsToSelectionStringBuffer(buffer, groupOfInterest.getPositiveKeyAtoms(),groupOfInterest.getNegativeKeyAtoms());
-			addAtomsToSelectionStringBuffer(buffer, groupOfInterest.getKeyAtoms(), null);
-		} else {
-			addResidueToSelectionStringBuffer(buffer, groupOfInterest.getResidueNumber().getSeqNum(), groupOfInterest.getChain().getName());
-		}
-	}
-	private static void addAtomsToSelectionStringBuffer(StringBuffer buffer, Atom[] positiveKeyAtoms, Atom[] negativeKeyAtoms) {
-		if (positiveKeyAtoms != null && positiveKeyAtoms.length>0) {
-			buffer.append('(');
-			for (int i = 0; i < positiveKeyAtoms.length; i++) {
-				buffer.append(" atomno = ").append(
-						positiveKeyAtoms[i].getPDBserial());
-				if (i < positiveKeyAtoms.length - 1) {
-					buffer.append(" OR ");
-				}
-			}
-			buffer.append(") OR ");
-		}
-		if (negativeKeyAtoms != null && negativeKeyAtoms.length>0) {
-			buffer.append('(');
-			for (int i = 0; i < negativeKeyAtoms.length; i++) {
-				buffer.append(" atomno = ").append(
-						negativeKeyAtoms[i].getPDBserial());
-				if (i < negativeKeyAtoms.length - 1) {
-					buffer.append(" OR ");
-				}
-			}
-			buffer.append(") OR ");
-		}
-	}
-	private static void addResidueToSelectionStringBuffer(StringBuffer buffer,int residurNumber,String chainId) {
-		buffer.append("(resno = ").append(residurNumber).append(" AND chain = ").append(chainId);
-//		buffer.append(" AND SIDECHAIN ");
-		buffer.append(") OR ");
-	}
 
-	public static File prepareFilesList(boolean temp) {
+public static File prepareFilesList(boolean temp) {
 		System.out.println("Preparing Files List");
 		Pattern fileNamePattern = Pattern.compile("(pdb)?(([0-9a-z]{4})?([1-9]\\p{Alnum}{3}))((\\.ent\\.gz)|(\\.cif\\.gz))", Pattern.CASE_INSENSITIVE);
 //		Pattern fileNamePattern = Pattern.compile("(([0-9a-z]{4})?([1-9]\\p{Alnum}{3}))", Pattern.CASE_INSENSITIVE);
@@ -300,59 +291,28 @@ public class ResultManager {
 	 * @param foundInteractions
 	 * @return
 	 */
-	public static String createListofConnectionsAsString(Hashtable<GroupOfInterest, HashSet<GroupOfInterest>> foundInteractions) {
+	public static String createListofConnectionsAsString(Set<Bond> bonds) {
 		StringBuilder listOfConnections = new StringBuilder();
-		for (GroupOfInterest aromaticAminoAcid : foundInteractions.keySet()) {
-			HashSet<GroupOfInterest> interactionTargets=foundInteractions.get(aromaticAminoAcid);
-			for (GroupOfInterest interactionTarget : interactionTargets) {
-				String connectionString = createInteractionString(aromaticAminoAcid, interactionTarget);
-				listOfConnections.append(connectionString);
-				listOfConnections.append(System.getProperty("line.separator"));
-			}
+		for (Bond bond : bonds) {
+			String connectionString = createInteractionString(bond);
+			listOfConnections.append(connectionString);
+			listOfConnections.append(System.lineSeparator());
 		}
 		return listOfConnections.toString();
 	}
 
 	/** the first is usually the pi system.
-	 * please notice that if you updated this method, {@link #retrieveJMolScriptString(String)} must me updated too.
-	 * @param aromaticAminoAcid
+	 * please notice that if you updated this method, {@link #generateAfterLoadingJMolScriptString(String)} must me updated too.
 	 * @param interactionTarget
 	 * @return
 	 */
-	public static String createInteractionString(GroupOfInterest aromaticAminoAcid, GroupOfInterest interactionTarget) {
-		StringBuilder interactionOfInterestFound = new StringBuilder(getRepresentativeString(aromaticAminoAcid)).append(INTERACTION_SEPARATOR);
-//		GroupOfInterest groupOfInterest= interactionTarget;
-		interactionOfInterestFound.append(getRepresentativeString(interactionTarget));
-		
-//		interactionOfInterestFound.append('(');
-////		Atom[] positiveKeyAtoms = groupOfInterest.getPositiveKeyAtoms();
-////		if (positiveKeyAtoms != null) {
-////			interactionOfInterestFound.append('+');
-////			Float distanceSign = interactionTarget.side;
-////			interactionOfInterestFound.append(distanceSign==1.0?'R':distanceSign==-1.0?'L':'S');
-////		}
-////		Atom[] negativeKeyAtoms = groupOfInterest.getNegativeKeyAtoms();
-////		if (negativeKeyAtoms != null) {
-////			interactionOfInterestFound.append('-');
-////			Float distanceSign = interactionTarget.side;
-////			interactionOfInterestFound.append(distanceSign==1.0?'R':distanceSign==-1.0?'L':'S');
-////		}
-//		
-//		interactionOfInterestFound.append(interactionTarget.charge);
-//		interactionOfInterestFound.append(interactionTarget.side);
-//
-//		//start of adding r & theta
-//		interactionOfInterestFound.append(';').append('\t')
-//		.append(interactionTarget.r.x).append(',')
-//		.append(interactionTarget.r.y).append(',')
-//		.append(interactionTarget.r.z).append(',')
-//		.append(interactionTarget.theta);
-//		//end    of adding r & theta
-//		interactionOfInterestFound.append(')');
+	public static String createInteractionString(Bond bond) {
+		StringBuilder interactionOfInterestFound = new StringBuilder(getRepresentativeString(bond.getAtomA())).append(INTERACTION_SEPARATOR);
+		interactionOfInterestFound.append(getRepresentativeString(bond.getAtomB()));
 
-		String string = interactionOfInterestFound.toString();
-		return string;
+		return interactionOfInterestFound.toString();
 	}
+
 	public static HashSet<String> decodeInteractioString(String nextLine, Hashtable<String,HashSet<String>> interactions) {
 
 		//extract source
@@ -387,35 +347,25 @@ public class ResultManager {
 
 
 
-	public static boolean exportFileToScript(String pdbId, String relativeExportedFilePath, String additionalScript) {
-		File exportFolder = new File(relativeExportedFilePath);
+	/**
+	 * 
+	 * a] file loading 
+	 * b] file formatting 
+	 * c] TODO (+/-) ED Map loading scripts
+	 * 
+	 * @param pdbId
+	 * @param exportFolder
+	 * @return
+	 * @deprecated scripts should be created on the fly
+	 */
+	public static boolean exportFileLoadingScript(PdbId pdbId, File exportFolder) {
+		String command = generateFileLoadJMolScript(pdbId);
+		String pdbIdString = pdbId.toString();
 		if (exportFolder.exists() || exportFolder.mkdirs()) {
 			try {
-				FileWriter fw = new FileWriter (new File(exportFolder, pdbId+".spt"),false);
-				PrintWriter file = new PrintWriter(fw);
-
-				int beginIndex = pdbId.length() - 3;
-				String middle = pdbId.substring(beginIndex, beginIndex + 2);
-				String fileName;
-				switch(settingsManager.getFileFormat()) {
-					case UserConfiguration.PDB_FORMAT:
-						fileName = "pdb"+pdbId+".ent.gz";
-						break;
-					case UserConfiguration.MMCIF_FORMAT:
-						fileName = pdbId+".cif.gz";
-						break;
-					default:
-						throw new IllegalArgumentException("Unknown file format ["+settingsManager.getFileFormat()+"]");
-				}
-				String command = "load \"" + settingsManager.getPdbFilePath() + File.separatorChar + middle + File.separatorChar + fileName + "\";";
+				PrintWriter file = new PrintWriter(new File(exportFolder, pdbIdString+".spt"));
 				file.println(command);
 				file.println(GENERAL_SELECTION_SCRIPT);
-				String[] strings = additionalScript.split(System.getProperty("line.separator"));
-				for (String string : strings) {
-					if (string.startsWith(SPHERE_KEYWORD) /*&& settingsManager.isDomainEnabled()*/) {
-						file.println(decodeDrawSphereCommand(string));
-					}
-				}
 				file.close();
 				return true;
 			}catch (IOException e) {
@@ -423,6 +373,31 @@ public class ResultManager {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Currently replaced by {@link #getStructureById(PdbId)}. We need to choose the better one of them.
+	 * @param pdbId
+	 * @return
+	 * @see #getStructureById(PdbId)
+	 */
+	public static String generateFileLoadJMolScript(PdbId pdbId) {
+		String pdbIdString = pdbId.toString();
+		int beginIndex = pdbIdString.length() - 3;
+		String middle = pdbIdString.substring(beginIndex, beginIndex + 2);
+		String fileName;
+		switch(settingsManager.getFileFormat()) {
+			case UserConfiguration.PDB_FORMAT:
+				fileName = "pdb" + pdbIdString +".ent.gz";
+				break;
+			case UserConfiguration.MMCIF_FORMAT:
+				fileName = pdbIdString +".cif.gz";
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown file format ["+settingsManager.getFileFormat()+"]");
+		}
+		String command = "load \"" + settingsManager.getPdbFilePath() + File.separatorChar + middle + File.separatorChar + fileName + "\";";
+		return command;
 	}
 
 
@@ -543,9 +518,24 @@ public class ResultManager {
 
 	}
 
-	public static String getRepresentativeString(GroupOfInterest groupOfInterest) {
-		StringBuilder representativeString=
-		new StringBuilder().append("[").append(groupOfInterest.getPDBName()).append("]").append(groupOfInterest.getResidueNumber()).append(":").append(groupOfInterest.getChain().getName());
+	/**
+	 * @param atom
+	 * @return
+	 */
+	public static String getRepresentativeString(Atom atom) {
+		Group group = atom.getGroup();
+		StringBuilder representativeString = new StringBuilder().append("[").append(group.getPDBName()).append("]");
+		representativeString.append(group.getResidueNumber()).append(":").append(group.getChain().getName());
+		//add atom name / altLot
+		representativeString.append('.').append(atom.getName());
+
+		final Character altLoc = atom.getAltLoc();
+		if(altLoc != null && altLoc != ' ') {
+			representativeString.append('%').append(altLoc);
+		}
+		double[] coords = atom.getCoords();
+		representativeString.append(String.format(" {%.3f %.3f %.3f}", coords[0], coords[1], coords[2]));
+
 //		if (groupOfInterest instanceof HetGroupOfInterest) {
 //			representativeString.append('{');
 //			Atom[] positiveKeyAtoms = groupOfInterest.getPositiveKeyAtoms();
@@ -558,6 +548,38 @@ public class ResultManager {
 //			representativeString.append('}');
 //		}
 		return representativeString.toString();
-	}	
+	}
+	public static String removeAtomCoords(String listofDetailedConnectionsAsString) {
+		return listofDetailedConnectionsAsString.replaceAll("\\{.+?\\}", "");
+	}
 
+	public static void persistBondsList(PdbId pdbId, List<String> bonds) {
+		try {
+			File folderForToken = ResultManager.createCacheFolderForToken(pdbId);
+			FileWriter writer;
+			writer = new FileWriter(new File(folderForToken, pdbId.getId()));
+			for(String bond: bonds) {
+				writer.append(bond.toString()).append(System.lineSeparator());									
+			}
+			writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public static List<String> retreiveBondsList(PdbId pdbId) {
+		try {
+			File folderForToken = ResultManager.createCacheFolderForToken(pdbId);
+			Scanner scanner = new Scanner(new File(folderForToken, pdbId.getId()));
+			List<String> ret = new ArrayList<>();
+			while (scanner.hasNextLine()) {
+				String string = (String) scanner.nextLine();
+				ret.add(string);
+			}
+			return ret;
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
 }
