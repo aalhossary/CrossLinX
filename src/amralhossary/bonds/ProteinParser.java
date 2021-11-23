@@ -535,7 +535,7 @@ public class ProteinParser implements SettingListener{
 	}
 	
 	public void parseFromScanner(Scanner scanner, boolean imported) {
-;		int count = 1;
+		int count = 1;
 		final String startOfStructurePrefix = ResultManager.START_OF_STRUCTURE_PREFIX;
 		final int tokenNamePosition = startOfStructurePrefix.length();
 		while (scanner.hasNextLine() && moreWork) {
@@ -549,7 +549,7 @@ public class ProteinParser implements SettingListener{
 						endIdx = dotIdx;
 					final PdbId pdbId = new PdbId(token.substring(0, endIdx));
 					List<String> bonds = new ArrayList<>();
-					while (scanner.hasNextLine()) {
+					while (scanner.hasNextLine() && moreWork) {
 						String bondString = (String) scanner.nextLine();
 						if(bondString.length() != 0) {
 							bonds.add(bondString);
@@ -566,7 +566,14 @@ public class ProteinParser implements SettingListener{
 							ResultManager.persistBondsList(pdbId, bonds);
 							if (gui != null) {
 								//populate found interactions in structures
-								gui.interactionsFoundInStructure(pdbId);
+								if(imported) {
+									Boolean prev = settingsManager.isShowWhileProcessing();
+									settingsManager.setShowWhileProcessing(false);
+									gui.interactionsFoundInStructure(pdbId);
+									settingsManager.setShowWhileProcessing(prev);
+								}else {
+									gui.interactionsFoundInStructure(pdbId);
+								}
 							}
 							bonds.clear();
 
@@ -580,7 +587,14 @@ public class ProteinParser implements SettingListener{
 						ResultManager.persistBondsList(pdbId, bonds);
 						if (gui != null) {
 							//populate found interactions in structures
-							gui.interactionsFoundInStructure(pdbId);
+							if(imported) {
+								Boolean prev = settingsManager.isShowWhileProcessing();
+								settingsManager.setShowWhileProcessing(false);
+								gui.interactionsFoundInStructure(pdbId);
+								settingsManager.setShowWhileProcessing(prev);
+							}else {
+								gui.interactionsFoundInStructure(pdbId);
+							}
 						}
 					}
 					//note that selecting a structure should populate the interactions list
@@ -588,7 +602,7 @@ public class ProteinParser implements SettingListener{
 
 					count++;
 				} else if (line.startsWith(ProteinParser.START_OF_STATISTICS)) {
-					System.out.println("Parsed "+count+" structures. Please wait...");
+					System.out.println("Parsed total "+count+" structures.");
 					while (scanner.hasNextLine() && moreWork) {
 						line=scanner.nextLine();
 						if (line.contains("%")) {
