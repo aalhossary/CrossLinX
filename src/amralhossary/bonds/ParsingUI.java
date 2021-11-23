@@ -958,6 +958,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		if (option== JFileChooser.APPROVE_OPTION) {
 			new Thread() {
 				public void run() {
+					startButton.setEnabled(false);
 					String path = fileChooser.getSelectedFile().getAbsolutePath();
 					System.out.println("File :");
 					System.out.println(path);
@@ -976,7 +977,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 						}
 						parser.importResultsFile(scanner);
 					}
-					
+					startButton.setEnabled(true);
 				}
 			}.start();
 		}else {
