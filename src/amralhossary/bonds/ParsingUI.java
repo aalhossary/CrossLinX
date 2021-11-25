@@ -72,7 +72,8 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		}
 	}
 
-	private final int[] NO_SELECTION = new int[] {};
+	private static final int[] NO_SELECTION = new int[] {};
+	private static final BondListItem[] NO_BOND_LIST_ITEMS = new BondListItem[0];
 	private static final int MAX_TEXT_CONTENTS = 80000;
 	private JFrame jFrame = null;  //  @jve:decl-index=0:visual-constraint="10,10"
 	private JPanel jContentPane = null;
@@ -594,6 +595,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 							startButton.setEnabled(false);
 							getStopButton().setEnabled(true);
 							((DefaultListModel<PdbId>)getFoundStructuresWithInteractionsList().getModel()).clear();
+							getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
 							Scanner scanner = null;
 							ButtonModel selectionModel = getButtonGroup().getSelection();
 							try {
@@ -728,8 +730,13 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			foundStructuresWithInteractionsList.setFixedCellHeight(foundStructuresWithInteractionsList.getFont().getSize()+1);
 			foundStructuresWithInteractionsList.addListSelectionListener(new ListSelectionListener() {
 				public void valueChanged(ListSelectionEvent e) {
-					if (foundStructuresWithInteractionsList.getSelectedIndices().length != 1)
+					final int numOfSelectedItems = foundStructuresWithInteractionsList.getSelectedIndices().length;
+					if (numOfSelectedItems > 1)
 						return;
+					if (numOfSelectedItems == 0) {
+						getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
+						return;
+					}
 					JmolPanel jmolPanel = getJmolPanel();
 					PdbId pdbId = foundStructuresWithInteractionsList.getSelectedValue();
 					
