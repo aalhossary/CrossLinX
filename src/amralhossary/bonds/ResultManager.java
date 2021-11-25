@@ -38,10 +38,11 @@ import org.jmol.api.JmolViewer;
 public class ResultManager {
 	private static final String SPHERE_KEYWORD = "sphere";
 
-	public static final String GENERAL_SELECTION_SCRIPT = "set logLevel 0; select *;wireframe on;color cpk;\n"+
+	public static final String GENERAL_SELECTION_SCRIPT = "set logLevel 0; display not solvent; select *;cartoons only; color cartoon group;rockets off;ribbons off;\n"+
 			"set showHydrogens false; set selectHydrogen off;"+
 //			"SELECT (PHE OR TYR OR TRP OR LYS OR ARG OR GLU OR ASP) AND SIDECHAIN;"+
-			"spacefill 23%AUTO;wireframe 0.15;color cpk;\n";
+//			"spacefill 23%AUTO;wireframe 0.15;"
+			 "color cpk;\n";
 
 	private static final String INTERACTION_SEPARATOR = " \t-> ";
 	public static final String CACHE_RESULT_FOLDER = "temp/cashe";
@@ -143,7 +144,9 @@ public class ResultManager {
 		
 		//augment interacting residues / atoms
 		if (interactingAtoms.size()>0) {
-			buffer.append("SELECT (");
+			buffer.append("SELECT ("
+//					+ "("
+					);
 			String[] interactingAtomsArray = interactingAtoms.toArray(new String[] {});
 			for (int i = 0; i < interactingAtomsArray.length; i++) {
 				String interactingAtom = interactingAtomsArray[i];
@@ -151,33 +154,22 @@ public class ResultManager {
 				int indexOfColon = interactingAtom.indexOf(':');
 				int indexOfDot = interactingAtom.indexOf('.', indexOfColon);
 
-//				String residueNumber = interactingAtom.substring(indexOfClosingSquareBracket+1,indexOfColon);
-//				String chainId = interactingAtom.substring(indexOfColon+1, indexOfDot);
-//				buffer.append("(resno = ").append(Integer.parseInt(residueNumber)).append(" AND chain = ").append(chainId);
-////				buffer.append(" AND SIDECHAIN ");
-//				buffer.append(")");
 				final String residueDefinition = interactingAtom.substring(0, indexOfDot);
 				buffer.append(residueDefinition);
 				if (i < interactingAtomsArray.length -1) {
 					buffer.append(" OR ");
 				}
-//				String atomList = interactingAtom.substring(indexOfOpeningPracket+1,interactingAtom.indexOf('}'));
-//				String[] splits = atomList.split(",");
-//				if (splits != null && splits.length>0) {
-//					buffer.append('(');
-//					for (int i = 0; i < splits.length; i++) {
-//						buffer.append(" atomno = ").append(splits[i].substring(splits[i].indexOf('|')+1));
-//						if (i < splits.length - 1) {
-//							buffer.append(" OR ");
-//						}
-//					}
-//					buffer.append(") OR ");
-//				}
 			}
-			buffer.append(" );");//wanted Atoms
+			buffer.append(" )"
+//					+ " AND (sidechain OR *.CA)"
+//					+ ")"
+					+ ";");
 			//make the whole residue sticks.
-			buffer.append("wireframe 0.3 only;color cpk;\n");
-			
+//			buffer.append("wireframe 0.3 only;color cpk;\n");
+			buffer.append("spacefill off; wireframe 0.25;"
+//					+ "set bondmode AND;"
+					+ "color bonds none;\n");
+
 			//Then make the interacting atoms spacefill and/or show ED map
 			buffer.append("SELECT (");
 			for (int i = 0; i < interactingAtomsArray.length; i++) {
@@ -192,7 +184,11 @@ public class ResultManager {
 			}
 			buffer.append(");");//wanted Atoms
 			//make the whole residue sticks.
-			buffer.append("spacefill 75%;color cpk;\n");//space fill
+			buffer.append(
+//					"spacefill ionic;"+
+					"spacefill 0.5;"
+					);//space fill
+			buffer.append("color bonds [255,255,0];\n");
 
 			//TODO complete by writing the Electron density map fetching and showing code
 //				int indexOfOpeningPracket = interactingAtom.indexOf('{'); // atom coordinates
