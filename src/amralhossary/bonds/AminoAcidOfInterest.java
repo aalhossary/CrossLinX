@@ -1,8 +1,11 @@
 package amralhossary.bonds;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Hashtable;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.biojava.nbio.structure.AminoAcid;
 import org.biojava.nbio.structure.AminoAcidImpl;
@@ -24,6 +27,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 //	private Atom[] negativeKeyAtoms=null;
 	private ArrayList<ContainingCube> containingCubes=new ArrayList<AminoAcidOfInterest.ContainingCube>();
 	
+	public static final Set<String> aminoAcidsOfSpecialInterest;
 	protected int aAOfInterestType;
 
 	protected int missingAtoms;
@@ -34,6 +38,25 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 	private Atom[] keyNAtoms = null;
 
 	static int processedAtoms;
+	
+	static {
+		Set<String> tempAminoAcidsOfSpecialInterest = new LinkedHashSet<String>();
+		tempAminoAcidsOfSpecialInterest.add(NAME___LYS);
+		tempAminoAcidsOfSpecialInterest.add(NAME___ARG);
+		tempAminoAcidsOfSpecialInterest.add(NAME___HIS);
+		tempAminoAcidsOfSpecialInterest.add(NAME___GLU);
+		tempAminoAcidsOfSpecialInterest.add(NAME___GLN);
+		tempAminoAcidsOfSpecialInterest.add(NAME___ASP);
+		tempAminoAcidsOfSpecialInterest.add(NAME___ASN);
+		tempAminoAcidsOfSpecialInterest.add(NAME___CYS);
+		tempAminoAcidsOfSpecialInterest.add(NAME___CSO);
+		tempAminoAcidsOfSpecialInterest.add(NAME___SEC);
+		tempAminoAcidsOfSpecialInterest.add(NAME___SE7);
+		tempAminoAcidsOfSpecialInterest.add(NAME___THR);
+		tempAminoAcidsOfSpecialInterest.add(NAME___SER);
+		tempAminoAcidsOfSpecialInterest.add(NAME___TYR);
+		aminoAcidsOfSpecialInterest = Collections.unmodifiableSet(tempAminoAcidsOfSpecialInterest);
+	}
 
 	public static AminoAcidOfInterest newAcidOfInterest(
 			AminoAcid aminoAcidOfInterest,

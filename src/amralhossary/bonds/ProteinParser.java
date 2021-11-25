@@ -930,7 +930,7 @@ public class ProteinParser implements SettingListener{
 		Date depDate = pdbHeader.getDepDate();
 		Date relDate = pdbHeader.getRelDate();
 		Date modDate = pdbHeader.getModDate();
-		if (modDate == null || modDate.equals(new Date(0)) ) {
+		if (modDate == null || modDate.equals(new Date(0)) ) {  // TODO remove this when you upgrade to new BioJava
 			modDate = relDate;
 		}
 		str.append(simpleDateFormat.format(depDate)).append('\t')
@@ -1157,7 +1157,6 @@ outer:		for (int i = 0; !confirmed && i < atoms1.length; i++) {
 						GroupOfInterest.NAME___LYS.equals(aaPdbName)||
 						GroupOfInterest.NAME___ARG.equals(aaPdbName)||
 						GroupOfInterest.NAME___HIS.equals(aaPdbName)||
-						GroupOfInterest.NAME___LYS.equals(aaPdbName)||
 						GroupOfInterest.NAME___GLU.equals(aaPdbName)||
 						GroupOfInterest.NAME___GLN.equals(aaPdbName)||
 						GroupOfInterest.NAME___ASP.equals(aaPdbName)||
@@ -1194,7 +1193,6 @@ outer:		for (int i = 0; !confirmed && i < atoms1.length; i++) {
 						GroupOfInterest.NAME_D_LYS.equals(aaPdbName)||
 						GroupOfInterest.NAME_D_ARG.equals(aaPdbName)||
 						GroupOfInterest.NAME_D_HIS.equals(aaPdbName)||
-						GroupOfInterest.NAME_D_LYS.equals(aaPdbName)||
 						GroupOfInterest.NAME_D_GLU.equals(aaPdbName)||
 						GroupOfInterest.NAME_D_GLN.equals(aaPdbName)||
 						GroupOfInterest.NAME_D_ASP.equals(aaPdbName)||
@@ -1252,27 +1250,10 @@ outer:		for (int i = 0; !confirmed && i < atoms1.length; i++) {
 			final int currentResidueNumber = group.getResidueNumber().getSeqNum();
 			final String groupPdbName = group.getPDBName();
 			
-			if (group instanceof AminoAcid) {
-				if(
-						GroupOfInterest.NAME___LYS.equals(groupPdbName)||
-						GroupOfInterest.NAME___ARG.equals(groupPdbName)||
-						GroupOfInterest.NAME___HIS.equals(groupPdbName)||
-						GroupOfInterest.NAME___LYS.equals(groupPdbName)||
-						GroupOfInterest.NAME___GLU.equals(groupPdbName)||
-						GroupOfInterest.NAME___GLN.equals(groupPdbName)||
-						GroupOfInterest.NAME___ASP.equals(groupPdbName)||
-						GroupOfInterest.NAME___ASN.equals(groupPdbName)||
-						GroupOfInterest.NAME___CYS.equals(groupPdbName)||
-						GroupOfInterest.NAME___CSO.equals(groupPdbName)||
-						GroupOfInterest.NAME___SEC.equals(groupPdbName)||
-						GroupOfInterest.NAME___SE7.equals(groupPdbName)||
-						GroupOfInterest.NAME___THR.equals(groupPdbName)||
-						GroupOfInterest.NAME___SER.equals(groupPdbName)||
-						GroupOfInterest.NAME___TYR.equals(groupPdbName)
-						) 
-				{
+			if (TempStructureTools.isAminoAcid(groupPdbName)) { //handles both L and D AminoAcids, as well as CSO
+				if(AminoAcidOfInterest.aminoAcidsOfSpecialInterest.contains(groupPdbName) || 
+				   AminoAcidOfInterest.aminoAcidsOfSpecialInterest.contains(TempStructureTools.getLChiralImage(groupPdbName))) {
 					aminoacids.put(group, true);
-					cTerminusCandidate = group;
 				}
 				
 				if (currentResidueNumber != prevResidueSeqNum + 1) {  //if N-Terminus
@@ -1283,40 +1264,21 @@ outer:		for (int i = 0; !confirmed && i < atoms1.length; i++) {
 						cTerminusCandidate = null;
 					}
 				}
-			} else if(group instanceof HetatomImpl){ //D-AminoAcids
-				if(groupPdbName.startsWith("D") && (
-						GroupOfInterest.NAME_D_LYS.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_ARG.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_HIS.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_LYS.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_GLU.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_GLN.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_ASP.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_ASN.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_CYS.equals(groupPdbName)||
-//						GroupOfInterest.NAME_D_CSO.equals(groupPdbName)||
-//						GroupOfInterest.NAME_D_SEC.equals(groupPdbName)||
-//						GroupOfInterest.NAME_D_SE7.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_THR.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_SER.equals(groupPdbName)||
-						GroupOfInterest.NAME_D_TYR.equals(groupPdbName)
-						)) 
-				{
-					aminoacids.put(group, true);
-					if (currentResidueNumber != prevResidueSeqNum + 1) {  //if N-Terminus
-						nTerminus.put(group, true);
-					}
-					cTerminusCandidate = group;
-				}else { //Ligand
-					ligands.put(group, false);
-					if (cTerminusCandidate != null) {
-						cTerminus.put(cTerminusCandidate, true);
-						cTerminusCandidate = null;
-					}
+				cTerminusCandidate = group;
+			} else {
+				if (cTerminusCandidate != null) {
+					cTerminus.put(cTerminusCandidate, true);
+					cTerminusCandidate = null;
 				}
-			} else { //nucleotide and others
-				//Don know yet
+
+				if(group instanceof HetatomImpl){ //Ligand
+					ligands.put(group, false);
+				} else { //nucleotide and others
+					//Don know yet
+				}
+				
 			}
+			prevResidueSeqNum = currentResidueNumber;
 		}//end of for loop
 		if (cTerminusCandidate != null) {
 			cTerminus.put(cTerminusCandidate, true);
