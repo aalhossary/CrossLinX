@@ -603,6 +603,7 @@ public class ProteinParser implements SettingListener{
 					count++;
 				} else if (line.startsWith(ProteinParser.START_OF_STATISTICS)) {
 					System.out.println("Parsed total "+count+" structures.");
+					System.out.println("Sorting entries...");
 					while (scanner.hasNextLine() && moreWork) {
 						line=scanner.nextLine();
 						if (line.contains("%")) {

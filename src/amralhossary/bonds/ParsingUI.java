@@ -594,7 +594,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 							ProteinParser.moreWork = true;
 							startButton.setEnabled(false);
 							getStopButton().setEnabled(true);
-							((DefaultListModel<PdbId>)getFoundStructuresWithInteractionsList().getModel()).clear();
+							((PdbIdListModel)getFoundStructuresWithInteractionsList().getModel()).clear();
 							getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
 							Scanner scanner = null;
 							ButtonModel selectionModel = getButtonGroup().getSelection();
@@ -645,7 +645,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	@Override
 	public void interactionsFoundInStructure(PdbId pdbId) {
 		JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
-		DefaultListModel<PdbId> model = (DefaultListModel<PdbId>)foundStructuresWithInteractionsList.getModel();
+		PdbIdListModel model = (PdbIdListModel)foundStructuresWithInteractionsList.getModel();
 		model.addElement(pdbId);
 		if (settingsManager.isShowWhileProcessing()) {
 			//this should work in a multithreaded environment, because if 
@@ -726,7 +726,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	 */
 	private JList<PdbId> getFoundStructuresWithInteractionsList() {
 		if (foundStructuresWithInteractionsList == null) {
-			foundStructuresWithInteractionsList = new JList<PdbId>(new DefaultListModel<PdbId>());
+			foundStructuresWithInteractionsList = new JList<PdbId>(new PdbIdListModel());
 			foundStructuresWithInteractionsList.setFixedCellHeight(foundStructuresWithInteractionsList.getFont().getSize()+1);
 			foundStructuresWithInteractionsList.addListSelectionListener(new ListSelectionListener() {
 				public void valueChanged(ListSelectionEvent e) {
@@ -976,14 +976,21 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					} catch (FileNotFoundException e1) {
 						e1.printStackTrace();
 					}
+					final JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
+					final PdbIdListModel pdbIdListModel = (PdbIdListModel) foundStructuresWithInteractionsList.getModel();
 					if (scanner != null) {
 						if (clean) {
-							((DefaultListModel<PdbId>) getFoundStructuresWithInteractionsList().getModel()).clear();
+							pdbIdListModel.clear();
 							//TODO clear the Jmolpanel too.
 							parser.initialize();
 						}
 						parser.importResultsFile(scanner);
 					}
+
+					PdbId selectedPdbId = foundStructuresWithInteractionsList.getSelectedValue();
+					pdbIdListModel.sort();
+					foundStructuresWithInteractionsList.setSelectedValue(selectedPdbId, true);
+
 					startButton.setEnabled(true);
 				}
 			}.start();
