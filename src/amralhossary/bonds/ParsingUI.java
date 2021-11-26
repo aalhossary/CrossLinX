@@ -23,7 +23,6 @@ import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.ButtonModel;
-import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JFileChooser;
@@ -987,9 +986,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 						parser.importResultsFile(scanner);
 					}
 
-					PdbId selectedPdbId = foundStructuresWithInteractionsList.getSelectedValue();
-					pdbIdListModel.sort();
-					foundStructuresWithInteractionsList.setSelectedValue(selectedPdbId, true);
+					sortResults();
 
 					startButton.setEnabled(true);
 				}
@@ -1038,4 +1035,15 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		}
 		return leftSplitPane;
 	}
+	
+	@Override
+	public void sortResults() {
+		System.out.print("Sorting entries...");
+		final JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
+		PdbId selectedPdbId = foundStructuresWithInteractionsList.getSelectedValue();
+		((PdbIdListModel) foundStructuresWithInteractionsList.getModel()).sort();
+		foundStructuresWithInteractionsList.setSelectedValue(selectedPdbId, true);
+		System.out.println("Done");
+	}
+	
 }

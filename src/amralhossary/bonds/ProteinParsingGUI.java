@@ -15,5 +15,6 @@ public interface ProteinParsingGUI {
 	public abstract void executeScript(String script);
 	public abstract void structureLoaded(Structure structure);
 	public abstract void showResults(Object results);
+	public abstract void sortResults();
 
 }
