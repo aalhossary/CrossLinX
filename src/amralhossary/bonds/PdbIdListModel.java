@@ -31,7 +31,8 @@ public class PdbIdListModel extends AbstractListModel<PdbId> {
 	public void clear() {
 		int last = getSize() -1;
 		elements.clear();
-		fireIntervalRemoved(elements, 0, last);
+		if(last >= 0)
+			fireIntervalRemoved(elements, 0, last);
 	}
 	
 	public void sort() {
