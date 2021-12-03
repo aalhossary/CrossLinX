@@ -108,7 +108,7 @@ public class ProteinParser implements SettingListener{
 	static final String TO_C_TERMINUS	= "To C-Terminus";
 	static final String INCLUDING_TYR 	= "Including Tyr";
 
-	SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
+	static SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
 
 	public class ExploreTask extends RecursiveAction{
 		private static final long serialVersionUID = 1L;
@@ -728,39 +728,45 @@ public class ProteinParser implements SettingListener{
 	 * @param token
 	 */
 	public boolean parseStructure(String token, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
-		boolean chainsInStructureParsedSuccessfully = parseChainsInStructure(token, cubes, logStringBuilder);
-		if (chainsInStructureParsedSuccessfully) {
-			Map<GroupOfInterest, Set<Bond>> foundInteractions = findInteractionsInCubes(cubes, logStringBuilder);
-			
-			if (foundInteractions.size() > 0){
-				totalFoundStructuresWithInteractions++;
-				// convert foundInteractions into listofDetailedConnectionsAsString (with coords)
-				Set<Bond> allBonds = new LinkedHashSet<Bond>();
-				Iterator<Set<Bond>> bondsIterator = foundInteractions.values().iterator();
-				while(bondsIterator.hasNext()) {
-					Set<Bond> bonds = bondsIterator.next();
-					allBonds.addAll(bonds);
-				}
-				String listofDetailedConnectionsAsString = ResultManager.createListofConnectionsAsString(allBonds);				
+		try {
+			boolean chainsInStructureParsedSuccessfully = parseChainsInStructure(token, cubes, logStringBuilder);
+			if (chainsInStructureParsedSuccessfully) {
+				Map<GroupOfInterest, Set<Bond>> foundInteractions = findInteractionsInCubes(cubes, logStringBuilder);
 				
-				//log it to positiveresults.txt
-				StringBuilder stringForParsablePositiveResultsFileSB = new StringBuilder(ResultManager.START_OF_STRUCTURE_PREFIX).append(token).append(System.getProperty("line.separator"));
-				stringForParsablePositiveResultsFileSB.append(listofDetailedConnectionsAsString);
-				String stringForParsablePositiveResultsFile = stringForParsablePositiveResultsFileSB.toString();
-				this.out.println(stringForParsablePositiveResultsFile);
+				if (foundInteractions.size() > 0){
+					totalFoundStructuresWithInteractions++;
+					// convert foundInteractions into listofDetailedConnectionsAsString (with coords)
+					Set<Bond> allBonds = new LinkedHashSet<Bond>();
+					Iterator<Set<Bond>> bondsIterator = foundInteractions.values().iterator();
+					while(bondsIterator.hasNext()) {
+						Set<Bond> bonds = bondsIterator.next();
+						allBonds.addAll(bonds);
+					}
+					String listofDetailedConnectionsAsString = ResultManager.createListofConnectionsAsString(allBonds);				
+					
+					//log it to positiveresults.txt
+					StringBuilder stringForParsablePositiveResultsFileSB = new StringBuilder(ResultManager.START_OF_STRUCTURE_PREFIX).append(token).append(System.getProperty("line.separator"));
+					stringForParsablePositiveResultsFileSB.append(listofDetailedConnectionsAsString);
+					String stringForParsablePositiveResultsFile = stringForParsablePositiveResultsFileSB.toString();
+					this.out.println(stringForParsablePositiveResultsFile);
 
-				//reduce the string by removing atom coordinates ==> xxxxxxxxNoCoords
-				String listofConnectionsAsStringNoCoords = ResultManager.removeAtomCoords(listofDetailedConnectionsAsString);
-				// show it to the user and in log
-				logStringBuilder.append(listofConnectionsAsStringNoCoords).append('\n');
-				//note that ResultManager.removeAtomCoords() is called in parseFromScanner() as well.
-				
-				//parse listofDetailedConnectionsAsString
-				parseFromScanner(new Scanner(stringForParsablePositiveResultsFile), false);
+					//reduce the string by removing atom coordinates ==> xxxxxxxxNoCoords
+					String listofConnectionsAsStringNoCoords = ResultManager.removeAtomCoords(listofDetailedConnectionsAsString);
+					// show it to the user and in log
+					logStringBuilder.append(listofConnectionsAsStringNoCoords).append('\n');
+					//note that ResultManager.removeAtomCoords() is called in parseFromScanner() as well.
+					
+					//parse listofDetailedConnectionsAsString
+					parseFromScanner(new Scanner(stringForParsablePositiveResultsFile), false);
+				}
+				return true;
 			}
-			return true;
+			return false;
+		} catch (Exception e) {
+			System.err.println("Error While parsing " + token);
+			e.printStackTrace();
+			throw e;
 		}
-		return false;
 	}
 
 	boolean parseChainsInStructure(String token, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
@@ -898,7 +904,7 @@ public class ProteinParser implements SettingListener{
 	private void writeTsvHeader(File tsvPositiveResultsFile) throws FileNotFoundException {
 		this.tsvOut = new PrintStream(tsvPositiveResultsFile);
 		this.tsvOut.print("PDB ID\tRes1\tC1\tRes1#\tA1\tAltLoc1\t<-\tDistance\t->\tRes2\tC2\tRes2#\tA2\tAltLoc2\t");
-		this.tsvOut.print("bond type\tsubtype / comments\tResolution\tRFree\tDep Date\tRel Date\tMod Date\tSource Organism Scientific\t");
+		this.tsvOut.print("bond type\tsubtype / comments\tExp. Tech.\tNMR?\tResolution\tRFree\tDep Date\tRel Date\tMod Date\tSource Organism Scientific\t");
 		this.tsvOut.print(String.format("%s\t%s\t%s\t%s\t", PILI_PILUS, ADHESIN_ADHESION, UBIQ, CYCLO_CYCLIC_LASSO));
 		this.tsvOut.println("Title");
 	}
@@ -924,19 +930,22 @@ public class ProteinParser implements SettingListener{
 		str.append(altLoc2 == null ? "" : altLoc2).append('\t');
 		
 		str.append(operation).append('\t').append(subOperation).append('\t');
-
+		
 		PDBHeader pdbHeader = structure.getPDBHeader();
+		str.append(pdbHeader.getExperimentalTechniques() == null ? "" : pdbHeader.getExperimentalTechniques()).append('\t');
+		str.append(structure.isNmr() ? "Yes" : "").append('\t');
 		str.append(pdbHeader.getResolution()).append('\t').append(pdbHeader.getRfree()).append('\t');
 		
+
 		Date depDate = pdbHeader.getDepDate();
 		Date relDate = pdbHeader.getRelDate();
 		Date modDate = pdbHeader.getModDate();
 		if (modDate == null || modDate.equals(new Date(0)) ) {  // TODO remove this when you upgrade to new BioJava
 			modDate = relDate;
 		}
-		str.append(simpleDateFormat.format(depDate)).append('\t')
-		.append(simpleDateFormat.format(relDate)).append('\t')
-		.append(simpleDateFormat.format(modDate)).append('\t');
+		str.append(simpleDateFormat.format(depDate)).append('\t');
+		str.append(simpleDateFormat.format(relDate)).append('\t');
+		str.append(simpleDateFormat.format(modDate)).append('\t');
 		
 //		System.out.format("%s\t%s\t%s\n", simpleDateFormat.format(depDate), simpleDateFormat.format(relDate), simpleDateFormat.format(modDate));
 		

@@ -634,9 +634,9 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	@Override
 	public void structureLoaded(Structure structure) {
 		if (settingsManager.isShowWhileProcessing()) {
-			out.setEnabled(false);
+//			out.setEnabled(false);
 			getJmolPanel().setStructure(structure);
-			out.setEnabled(true);
+//			out.setEnabled(true);
 		}
 	}
 	
@@ -743,13 +743,19 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					Structure structure = ResultManager.getStructureById(pdbId);
 					if(structure == null)
 						return;
-					out.setEnabled(false);
-					jmolPanel.setStructure(structure);
-					out.setEnabled(true);
-
-					String buffer = ResultManager.generateAfterLoadingJMolScriptString(pdbId);  //TODO review
+					try {
+						synchronized(this) {
+//							out.setEnabled(false);
+							jmolPanel.setStructure(structure);
+//							out.setEnabled(true);
+							
+							String buffer = ResultManager.generateAfterLoadingJMolScriptString(pdbId);  //TODO review
 //							System.out.println("String To Evaluate is: "+buffer);
-					jmolPanel.executeCmd(buffer);
+							jmolPanel.executeCmd(buffer);
+						}
+					} catch (Exception e1) {
+						e1.printStackTrace();
+					}
 					//selecting a structure should populate the interactions list
 					//populate foundLinksList
 					List<String> bondsList = ResultManager.retreiveBondsList(pdbId);
