@@ -108,8 +108,6 @@ public class ProteinParser implements SettingListener{
 	static final String TO_C_TERMINUS	= "To C-Terminus";
 	static final String INCLUDING_TYR 	= "Including Tyr";
 
-	static SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
-
 	public class ExploreTask extends RecursiveAction{
 		private static final long serialVersionUID = 1L;
 		private static final int CHUNK_SIZE = 5;
@@ -862,7 +860,9 @@ public class ProteinParser implements SettingListener{
 					return null;
 				}
 				String destCubeBaseName=null;
-				
+
+				SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
+
 				HashSet<Bond> tempInteractions = new LinkedHashSet<>(); //to decrease frequency of unnecessary objects creation
 				for (int ai = 0; ai < residue1List.size(); ai++) {
 					GroupOfInterest residue1 = (GroupOfInterest) residue1List.get(ai);
@@ -882,7 +882,7 @@ public class ProteinParser implements SettingListener{
 //									if (interactions.contains(residue2)) {//TODO change
 //										continue;
 //									}
-									boolean confirmedLink = confirmLink(residue1, residue2, operation, subOperation, interactions);
+									boolean confirmedLink = confirmLink(residue1, residue2, operation, subOperation, interactions, simpleDateFormat);
 
 									if (confirmedLink) {
 										break;
@@ -909,7 +909,7 @@ public class ProteinParser implements SettingListener{
 		this.tsvOut.println("Title");
 	}
 
-	private void outputTsv(Atom atom1, Atom atom2, double distance, String operation, String subOperation) {
+	private void outputTsv(Atom atom1, Atom atom2, double distance, String operation, String subOperation, SimpleDateFormat simpleDateFormat) {
 		Group residue1 = ((AtomImpl) atom1).getGroup();
 		Group residue2 = ((AtomImpl) atom2).getGroup();
 		Structure structure = residue1.getChain().getStructure();
@@ -943,6 +943,7 @@ public class ProteinParser implements SettingListener{
 		if (modDate == null || modDate.equals(new Date(0)) ) {  // TODO remove this when you upgrade to new BioJava
 			modDate = relDate;
 		}
+
 		str.append(simpleDateFormat.format(depDate)).append('\t');
 		str.append(simpleDateFormat.format(relDate)).append('\t');
 		str.append(simpleDateFormat.format(modDate)).append('\t');
@@ -1034,7 +1035,7 @@ public class ProteinParser implements SettingListener{
 		return null;
 	}
 
-	private boolean confirmLink(GroupOfInterest group1, GroupOfInterest group2, String operation, String subOperation, Set<Bond> interactions) {
+	private boolean confirmLink(GroupOfInterest group1, GroupOfInterest group2, String operation, String subOperation, Set<Bond> interactions, SimpleDateFormat simpleDateFormat) {
 		//check the group type and set parameters and output list
 		@SuppressWarnings("unused")
 		float cutoff, cutoff2;
@@ -1067,7 +1068,7 @@ public class ProteinParser implements SettingListener{
 			cutoff = 2.1f;
 			cutoff2= 4.41f;
 			if (atoms2[0] == null) {
-				return confirmLink(group1, group2, NXS_BOND, CSO_WITH_MISSING_O, interactions);
+				return confirmLink(group1, group2, NXS_BOND, CSO_WITH_MISSING_O, interactions, simpleDateFormat);
 			}
 		}else if (operation == ESTER_BOND) {
 			atoms1 = group1.getKeyOAtoms();
@@ -1122,7 +1123,7 @@ outer:		for (int i = 0; !confirmed && i < atoms1.length; i++) {
 				if (distanceSquared <= cutoff2) {
 					confirmed = true;
 					interactions.add(new BondImpl(atom1, atom2, 1, false));
-					outputTsv(atom1, atom2, Math.sqrt(distanceSquared), operation, subOperation);
+					outputTsv(atom1, atom2, Math.sqrt(distanceSquared), operation, subOperation, simpleDateFormat);
 					break outer;
 				}
 			}
