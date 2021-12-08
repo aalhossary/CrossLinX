@@ -940,9 +940,6 @@ public class ProteinParser implements SettingListener{
 		Date depDate = pdbHeader.getDepDate();
 		Date relDate = pdbHeader.getRelDate();
 		Date modDate = pdbHeader.getModDate();
-		if (modDate == null || modDate.equals(new Date(0)) ) {  // TODO remove this when you upgrade to new BioJava
-			modDate = relDate;
-		}
 
 		str.append(simpleDateFormat.format(depDate)).append('\t');
 		str.append(simpleDateFormat.format(relDate)).append('\t');
