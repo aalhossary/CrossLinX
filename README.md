@@ -13,7 +13,7 @@ NOS bond from LYS NZ (altLoc B) atom to CSO OD (altLoc B) atom.
 
 
 Isopeptide from LYS NZ atom to C-Terminus C atom.
-<img src="https://github.com/aalhossary/CrossLinX/raw/master/images/3HTL.png">
+<img src="https://github.com/aalhossary/CrossLinX/raw/master/images/7CAP.png">
 
 
 Isopeptide from LYS NZ to ASN CG atom.
