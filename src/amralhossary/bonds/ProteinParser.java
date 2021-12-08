@@ -166,7 +166,7 @@ public class ProteinParser implements SettingListener{
 			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___GLN, ISOPEPTIDE, "",
 			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___ASN, ISOPEPTIDE, "",
 			
-			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___TYR, ISOPEPTIDE, N_AA+INCLUDING_TYR, // TODO review
+			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___TYR, ISOPEPTIDE, N_AA+ ", " + INCLUDING_TYR, // TODO review
 			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___GLU, ISOPEPTIDE, N_AA,
 			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___ASP, ISOPEPTIDE, N_AA,
 			GroupOfInterest.NAME___1ST, GroupOfInterest.NAME___GLN, ISOPEPTIDE, N_AA,
@@ -940,9 +940,6 @@ public class ProteinParser implements SettingListener{
 		Date depDate = pdbHeader.getDepDate();
 		Date relDate = pdbHeader.getRelDate();
 		Date modDate = pdbHeader.getModDate();
-		if (modDate == null || modDate.equals(new Date(0)) ) {  // TODO remove this when you upgrade to new BioJava
-			modDate = relDate;
-		}
 
 		str.append(simpleDateFormat.format(depDate)).append('\t');
 		str.append(simpleDateFormat.format(relDate)).append('\t');
@@ -1054,6 +1051,8 @@ public class ProteinParser implements SettingListener{
 				atoms1 = new Atom[] {group1.getAtom("N")};
 			}
 		}else if (operation == INCLUDING_TYR) { //LYS_TYR, ARG_TYR, HIS_TYR
+			atoms1 = group1.getKeyNAtoms();
+			atoms2 = group2.getKeyCAtoms();
 			cutoff = 2.2f;
 			cutoff2= 4.84f;
 		}else if (operation == NXS_BOND) {
