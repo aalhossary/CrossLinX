@@ -3,6 +3,7 @@ package amralhossary.bonds;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -10,12 +11,16 @@ import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Scanner;
 
@@ -51,6 +56,8 @@ import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
 
 import amralhossary.bonds.SettingsManager.SettingListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	
@@ -726,6 +733,41 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JList<PdbId> getFoundStructuresWithInteractionsList() {
 		if (foundStructuresWithInteractionsList == null) {
 			foundStructuresWithInteractionsList = new JList<PdbId>(new PdbIdListModel());
+			foundStructuresWithInteractionsList.setToolTipText("Click an item to preview. \r\nDoubleClick or Enter for more details.");
+			foundStructuresWithInteractionsList.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					if (e.getButton()==MouseEvent.BUTTON1 && e.getClickCount() >= 2) {
+						final int itemIndex = foundStructuresWithInteractionsList.locationToIndex(e.getPoint());
+						final PdbId pdbId = foundStructuresWithInteractionsList.getModel().getElementAt(itemIndex);
+						openPdbIdInFGJM(pdbId);
+					}
+				}
+			});
+
+			foundStructuresWithInteractionsList.addKeyListener(new KeyAdapter() {
+				public void keyPressed(KeyEvent e) {
+					if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+						final int numOfSelectedItems = foundStructuresWithInteractionsList.getSelectedIndices().length;
+						if(numOfSelectedItems < 1)
+							return;
+						if (numOfSelectedItems == 1) {
+							final PdbId pdbId = foundStructuresWithInteractionsList.getSelectedValue();
+							openPdbIdInFGJM(pdbId);
+						} else {
+							int userChoice = JOptionPane.showConfirmDialog(getJFrame(), "Are you sure you want to open these "+numOfSelectedItems + " Items?", "Open structures", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+							if (userChoice == JOptionPane.YES_OPTION) {
+								int[] selectedIndices = foundStructuresWithInteractionsList.getSelectedIndices();
+								for (int i = 0; i < selectedIndices.length; i++) {
+									final PdbId pdbId = foundStructuresWithInteractionsList.getModel().getElementAt(selectedIndices[i]);
+									openPdbIdInFGJM(pdbId);
+								}
+							}
+						}
+					}
+				}
+			});
+			
 			foundStructuresWithInteractionsList.setFixedCellHeight(foundStructuresWithInteractionsList.getFont().getSize()+1);
 			foundStructuresWithInteractionsList.addListSelectionListener(new ListSelectionListener() {
 				public void valueChanged(ListSelectionEvent e) {
@@ -771,6 +813,17 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			});
 		}
 		return foundStructuresWithInteractionsList;
+	}
+	
+	public void openPdbIdInFGJM(final PdbId pdbId) {
+		String url = "http://firstglance.jmol.org/fg.htm?mol="+pdbId;
+		try {
+			Desktop.getDesktop().browse(new URI(url));
+		} catch (IOException e1) {
+			e1.printStackTrace();
+		} catch (URISyntaxException e1) {
+			e1.printStackTrace();
+		}
 	}
 
 	private JList<BondListItem> getFoundLinksList() {
