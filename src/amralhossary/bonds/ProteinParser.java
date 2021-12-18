@@ -729,7 +729,7 @@ public class ProteinParser implements SettingListener{
 		try {
 			boolean chainsInStructureParsedSuccessfully = parseChainsInStructure(token, cubes, logStringBuilder);
 			if (chainsInStructureParsedSuccessfully) {
-				Map<GroupOfInterest, Set<Bond>> foundInteractions = findInteractionsInCubes(cubes, logStringBuilder);
+				Map<ResidueNumber, Set<Bond>> foundInteractions = findInteractionsInCubes(cubes, logStringBuilder);
 				
 				if (foundInteractions.size() > 0){
 					totalFoundStructuresWithInteractions++;
@@ -831,9 +831,9 @@ public class ProteinParser implements SettingListener{
 	 * @param logStringBuilder
 	 * @return
 	 */
-	Map<GroupOfInterest, Set<Bond>> findInteractionsInCubes(Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
+	Map<ResidueNumber, Set<Bond>> findInteractionsInCubes(Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
 
-		Hashtable<GroupOfInterest, Set<Bond>> foundInteractions = new Hashtable<>();
+		Hashtable<ResidueNumber, Set<Bond>> foundInteractions = new Hashtable<>();
 		
 		for (int op = 0; moreWork && op < operations.length; op += 4) {
 			String sourceSuffix = operations[op];
@@ -870,26 +870,20 @@ public class ProteinParser implements SettingListener{
 						for (int j = y-1; j <= y+1; j++) {
 							for (int k = z-1; k <= z+1 ; k++) {
 								destCubeBaseName= i+"|"+j+"|"+k;
-								Set<Bond> interactions = foundInteractions.get(residue1);
+								Set<Bond> interactions = foundInteractions.get(residue1.getResidueNumber());
 								if (interactions == null) {
 									interactions = tempInteractions;
 								}
 								ArrayList<GroupOfInterest> destCubeOfGroupsOfInterest = cubes.get(destCubeBaseName+"|"+targetSuffix);
 								if (destCubeOfGroupsOfInterest == null)
 									continue;
+								boolean newConfirmedLinks = false;
 								for (GroupOfInterest residue2 : destCubeOfGroupsOfInterest) {
-//									//I removed this line on purpose, to see if 2 residues are linked using more than one bond of the same type.
-//									if (interactions.contains(residue2)) {//TODO change
-//										continue;
-//									}
-									boolean confirmedLink = confirmLink(residue1, residue2, operation, subOperation, interactions, simpleDateFormat);
-
-									if (confirmedLink) {
-										break;
-									}					
+									if(confirmLink(residue1, residue2, operation, subOperation, interactions, simpleDateFormat))
+										newConfirmedLinks = true;
 								}
-								if (interactions.size() > 0) {
-									foundInteractions.put(residue1, interactions);
+								if (newConfirmedLinks) {
+									foundInteractions.put(residue1.getResidueNumber(), interactions);
 									tempInteractions = new LinkedHashSet<>();
 								}
 							}
@@ -1105,19 +1099,18 @@ public class ProteinParser implements SettingListener{
 			return false;
 		}
 		boolean confirmed = false;
-outer:		for (int i = 0; !confirmed && i < atoms1.length; i++) {
+		outer: for (int i = 0; !confirmed && i < atoms1.length; i++) {
 			Atom atom1 = atoms1[i];
-			if(atom1 == null)
+			if (atom1 == null)
 				continue;
 			for (int j = 0; !confirmed && j < atoms2.length; j++) {
 				Atom atom2 = atoms2[j];
-				if(atom2 == null)
+				if (atom2 == null)
 					continue;
-				
-				if(alreadyReported(atom1, atom2, interactions))
+
+				if (alreadyReported(atom1, atom2, interactions))
 					continue;
-				
-				
+
 				double distanceSquared = Calc.getDistanceFast(atom1, atom2);
 				if (distanceSquared <= cutoff2) {
 					confirmed = true;
@@ -1318,9 +1311,9 @@ outer:		for (int i = 0; !confirmed && i < atoms1.length; i++) {
 				parsedGroupsOfInterest = new ArrayList<GroupOfInterest>();
 				if (!group.hasAltLoc()) {
 					GroupOfInterest groupOfInterest = createGroupOfInterest(group, aminoAcid, cubes);
-					parsedGroupsOfInterest.add(groupOfInterest);
+				parsedGroupsOfInterest.add(groupOfInterest);
 				} else {
-					for(Group groupTemp : group.getAltLocs()) {
+					for (Group groupTemp : group.getAltLocs()) {
 						GroupOfInterest groupOfInterest = createGroupOfInterest(groupTemp, aminoAcid, cubes);
 						parsedGroupsOfInterest.add(groupOfInterest);
 					}
