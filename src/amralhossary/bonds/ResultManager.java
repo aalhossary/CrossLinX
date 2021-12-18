@@ -209,8 +209,9 @@ public class ResultManager {
 		String residue2 = rightSide.substring(0, rightSide.indexOf('.'));
 		
 		StringBuffer buffer = new StringBuffer();
-		buffer.append("zoom 0;\n");
-		buffer.append("zoomto { ").append(residue1).append(" or ").append(residue2).append(" };\n");
+		buffer.append("zoomto 1.0 {visible} 0; delay 1.0;\n");
+		buffer.append("zoomto 0.5 { ").append(residue1).append(" or ").append(residue2).append(" };\n");
+		buffer.append("zoomto 0.5 { ").append(residue1).append(" or ").append(residue2).append(" } 0 *0.7;\n");
 		return buffer.toString();
 	}
 
