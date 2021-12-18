@@ -70,8 +70,10 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 		this.setPDBFlag(aminoAcidOfInterest.has3D());		
 		this.setResidueNumber(aminoAcidOfInterest.getResidueNumber());
 		this.setPDBName(aminoAcidOfInterest.getPDBName());
-//		this.setAminoType(aminoAcidOfInterest.getAminoType());
-//		this.setRecordType(aminoAcidOfInterest.getRecordType());
+		if(aminoAcidOfInterest instanceof AminoAcid) {
+			this.setAminoType(((AminoAcid)aminoAcidOfInterest).getAminoType());
+			this.setRecordType(((AminoAcid)aminoAcidOfInterest).getRecordType());
+		}
 
 		// copy the atoms
 		for (Atom atom : aminoAcidOfInterest.getAtoms()) {
