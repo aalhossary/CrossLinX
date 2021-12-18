@@ -59,7 +59,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 	}
 
 	public static AminoAcidOfInterest newAcidOfInterest(
-			AminoAcid aminoAcidOfInterest,
+			Group aminoAcidOfInterest,
 			Hashtable<String, ArrayList<GroupOfInterest>> cubes){
 		return new AminoAcidOfInterest(aminoAcidOfInterest, cubes);
 	}
@@ -84,7 +84,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 		// copying the alt loc groups if present, otherwise they stay null
 		if (aminoAcidOfInterest.getAltLocs()!=null && !aminoAcidOfInterest.getAltLocs().isEmpty()) {
 			for (Group altLocGroup:aminoAcidOfInterest.getAltLocs()) {
-				Group nAltLocGroup = AminoAcidOfInterest.newAcidOfInterest((AminoAcid) altLocGroup, cubes);
+				Group nAltLocGroup = AminoAcidOfInterest.newAcidOfInterest(altLocGroup, cubes);
 				this.addAltLoc(nAltLocGroup);
 			}
 		}

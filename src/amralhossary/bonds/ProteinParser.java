@@ -1309,12 +1309,12 @@ public class ProteinParser implements SettingListener{
 			List<GroupOfInterest> parsedGroupsOfInterest = allParsed.get(residueNumber);
 			if (parsedGroupsOfInterest == null) {
 				parsedGroupsOfInterest = new ArrayList<GroupOfInterest>();
-				if (!group.hasAltLoc()) {
-					GroupOfInterest groupOfInterest = createGroupOfInterest(group, aminoAcid, cubes);
+				GroupOfInterest groupOfInterest;
+				groupOfInterest = createGroupOfInterest(group, aminoAcid, cubes);
 				parsedGroupsOfInterest.add(groupOfInterest);
-				} else {
+				if (group.hasAltLoc()) {
 					for (Group groupTemp : group.getAltLocs()) {
-						GroupOfInterest groupOfInterest = createGroupOfInterest(groupTemp, aminoAcid, cubes);
+						groupOfInterest = createGroupOfInterest(groupTemp, aminoAcid, cubes);
 						parsedGroupsOfInterest.add(groupOfInterest);
 					}
 				}
