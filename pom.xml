@@ -60,14 +60,11 @@
 			<artifactId>biojava-structure-gui</artifactId>
 			<version>6.0.2-SNAPSHOT</version>
 		</dependency>
-		<!-- <dependency> <groupId>net.sourceforge.jmol</groupId> <artifactId>jmol</artifactId> 
-			<version>14.31.10</version> </dependency> -->
+	<!-- <dependency> <groupId>net.sourceforge.jmol</groupId> <artifactId>jmol</artifactId> 
+		<version>14.31.10</version> </dependency> -->
 
-		<dependency>
-			<groupId>docopt</groupId>
-			<artifactId>docopt.java</artifactId>
-			<version>0.6.0-SNAPSHOT</version>
-		</dependency>
+	<!-- <dependency> <groupId>docopt</groupId> <artifactId>docopt.java</artifactId> 
+		<version>0.6.0-SNAPSHOT</version> </dependency> -->
 	</dependencies>
 	<groupId>hossary</groupId>
 	<name>Cross Links Explorer</name>
