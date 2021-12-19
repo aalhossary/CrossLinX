@@ -733,7 +733,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JList<PdbId> getFoundStructuresWithInteractionsList() {
 		if (foundStructuresWithInteractionsList == null) {
 			foundStructuresWithInteractionsList = new JList<PdbId>(new PdbIdListModel());
-			foundStructuresWithInteractionsList.setToolTipText("Click an item to preview. \r\nDoubleClick or Enter for more details.");
+			foundStructuresWithInteractionsList.setToolTipText("<HTML><i>Click</i> an item to <B>preview</B>.<BR><i>DoubleClick</i> or <i>Enter</i> to <B>open</B>.</HTML>");
 			foundStructuresWithInteractionsList.addMouseListener(new MouseAdapter() {
 				@Override
 				public void mouseClicked(MouseEvent e) {
