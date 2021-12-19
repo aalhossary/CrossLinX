@@ -187,8 +187,11 @@ public class ProteinParser implements SettingListener{
 			GroupOfInterest.NAME___HET, GroupOfInterest.NAME___TYR, ISOPEPTIDE, HET_AA, //new
 			
 			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___CSO, NOS_BOND, "",
+			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___CSX, NOS_BOND, "",
 			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___CSO, NOS_BOND, ARG_CSO,
+			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___CSX, NOS_BOND, ARG_CSO,
 			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___CSO, NOS_BOND, HIS_CSO,
+			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___CSX, NOS_BOND, HIS_CSO,
 			GroupOfInterest.NAME___LYS, GroupOfInterest.NAME___CYS, NXS_BOND, "",
 			GroupOfInterest.NAME___ARG, GroupOfInterest.NAME___CYS, NXS_BOND, ARG_CYS,
 			GroupOfInterest.NAME___HIS, GroupOfInterest.NAME___CYS, NXS_BOND, HIS_CYS,
@@ -1166,6 +1169,7 @@ public class ProteinParser implements SettingListener{
 						GroupOfInterest.NAME___ASN.equals(aaPdbName)||
 						GroupOfInterest.NAME___CYS.equals(aaPdbName)||
 						GroupOfInterest.NAME___CSO.equals(aaPdbName)||
+						GroupOfInterest.NAME___CSX.equals(aaPdbName)||
 						GroupOfInterest.NAME___SEC.equals(aaPdbName)||
 						GroupOfInterest.NAME___SE7.equals(aaPdbName)||
 						GroupOfInterest.NAME___THR.equals(aaPdbName)||

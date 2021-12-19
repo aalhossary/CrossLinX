@@ -35,6 +35,8 @@ public interface GroupOfInterest extends Group {
 	public static final String NAME_D_CYS = "DCY";
 	public static final String NAME___CSO = "CSO";
 //	public static final String NAME_D_CSO = "";  // not found (yet)
+	public static final String NAME___CSX = "CSX";
+//	public static final String NAME_D_CSX = "";  // not found (yet)
 	public static final String NAME___SEC = "SEC";
 //	public static final String NAME_D_SEC = "";
 	public static final String NAME___SE7 = "SE7";
@@ -57,14 +59,15 @@ public interface GroupOfInterest extends Group {
 	public static final int CODE_ASP = 5;
 	public static final int CODE_ASN = 6;
 	public static final int CODE_CSO = 7;
-	public static final int CODE_CYS = 8;
-	public static final int CODE_SEC = 9;
-	public static final int CODE_SE7 = 10;
-	public static final int CODE_THR = 11;
-	public static final int CODE_SER = 12;
-	public static final int CODE_TYR = 13;
-	public static final int CODE_OTHERS = 14;  //new, for all other AAs
-	public static final int CODE_HET = 15;
+	public static final int CODE_CSX = 8;
+	public static final int CODE_CYS = 9;
+	public static final int CODE_SEC = 10;
+	public static final int CODE_SE7 = 11;
+	public static final int CODE_THR = 12;
+	public static final int CODE_SER = 13;
+	public static final int CODE_TYR = 14;
+	public static final int CODE_OTHERS = 15;  //new, for all other AAs
+	public static final int CODE_HET = 16;
 
 	public abstract String getSuffix();
 	

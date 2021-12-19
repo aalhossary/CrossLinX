@@ -39,6 +39,7 @@ public abstract class TempStructureTools {
 		aminoAcids.put("ASN", 'N');
 		aminoAcids.put("CYS", 'C');
 		aminoAcids.put("CSO", 'C'); //TODO double check CSO one letter code
+		aminoAcids.put("CSX", 'C'); //TODO double check CSX one letter code
 		aminoAcids.put("MET", 'M');
 		// MSE is only found as a molecular replacement for MET
 		aminoAcids.put("MSE", 'M');

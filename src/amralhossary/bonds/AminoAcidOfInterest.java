@@ -50,6 +50,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 		tempAminoAcidsOfSpecialInterest.add(NAME___ASN);
 		tempAminoAcidsOfSpecialInterest.add(NAME___CYS);
 		tempAminoAcidsOfSpecialInterest.add(NAME___CSO);
+		tempAminoAcidsOfSpecialInterest.add(NAME___CSX);
 		tempAminoAcidsOfSpecialInterest.add(NAME___SEC);
 		tempAminoAcidsOfSpecialInterest.add(NAME___SE7);
 		tempAminoAcidsOfSpecialInterest.add(NAME___THR);
@@ -142,6 +143,9 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			this.aAOfInterestType=GroupOfInterest.CODE_TYR;
 //			ProteinParser.totalFoundCys++;
 		}else if (GroupOfInterest.NAME___CSO.equals(pdbName)) {
+			this.aAOfInterestType=GroupOfInterest.CODE_CSO;
+//			ProteinParser.totalFoundCso++;
+		}else if (GroupOfInterest.NAME___CSX.equals(pdbName)) {
 			this.aAOfInterestType=GroupOfInterest.CODE_CSO;
 //			ProteinParser.totalFoundCso++;
 		}else if (GroupOfInterest.NAME___SEC.equals(pdbName)) {
@@ -290,6 +294,7 @@ public class AminoAcidOfInterest extends AminoAcidImpl implements GroupOfInteres
 			keyAtoms = keyCAtoms = new Atom[] {atom};
 			break;
 		case GroupOfInterest.CODE_CSO:
+		case GroupOfInterest.CODE_CSX:
 			this.suffix="|"+GroupOfInterest.NAME___CSO;
 			atom = getAtom("OD");
 			if (atom == null) {
