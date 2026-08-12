@@ -42,7 +42,10 @@ public class PdbIdListModel extends AbstractListModel<PdbId> {
 
 	public void addElement(PdbId pdbId) {
 		elements.add(pdbId);
-		fireContentsChanged(elements, getSize()-2, getSize()-1);
+		int added = getSize() - 1;
+		//An append is an insertion, not a change: fireContentsChanged(size-2, size-1)
+		//also passed -1 as the first index when adding to an empty list.
+		fireIntervalAdded(elements, added, added);
 	}
 
 }

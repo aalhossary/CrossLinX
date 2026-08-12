@@ -595,36 +595,45 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			startButton.setText("Start");
 			startButton.addActionListener(new java.awt.event.ActionListener() {
 				public void actionPerformed(java.awt.event.ActionEvent e) {
+					//Read the UI and reset it here, on the EDT, before the worker starts.
+					ProteinParser.moreWork = true;
+					startButton.setEnabled(false);
+					getStopButton().setEnabled(true);
+					((PdbIdListModel)getFoundStructuresWithInteractionsList().getModel()).clear();
+					getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
+					Scanner scanner = null;
+					ButtonModel selectionModel = getButtonGroup().getSelection();
+					try {
+						if (selectionModel == getAllFilesRadioButton().getModel()) {
+							scanner = new Scanner(new FileReader(ResultManager.prepareFilesList(true)));
+						} else if (selectionModel == getFilesListRadioButton().getModel()) {
+							scanner = new Scanner(new FileReader(getListTextField().getText()));
+						} else if (selectionModel == getTheseFilesRadioButton().getModel()) {
+							scanner = new Scanner(getFileListTextArea().getText());
+						}
+					} catch (FileNotFoundException e1) {
+						JOptionPane.showMessageDialog(getJFrame(), e1.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+//							e1.printStackTrace();
+					}
+					final Scanner finalScanner = scanner;
 					new Thread() {
 						public void run() {
-							ProteinParser.moreWork = true;
-							startButton.setEnabled(false);
-							getStopButton().setEnabled(true);
-							((PdbIdListModel)getFoundStructuresWithInteractionsList().getModel()).clear();
-							getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
-							Scanner scanner = null;
-							ButtonModel selectionModel = getButtonGroup().getSelection();
 							try {
-								if (selectionModel == getAllFilesRadioButton().getModel()) {
-									scanner = new Scanner(new FileReader(ResultManager.prepareFilesList(true)));
-								} else if (selectionModel == getFilesListRadioButton().getModel()) {
-									scanner = new Scanner(new FileReader(getListTextField().getText()));
-								} else if (selectionModel == getTheseFilesRadioButton().getModel()) {
-									scanner = new Scanner(getFileListTextArea().getText());
+								if (finalScanner != null) {
+									parser.startParsing(finalScanner);
+//									parser.parseStructureNamesList(finalScanner);
+								}else {
+									parser.getPrintableStatistics();
+									//Then?
 								}
-							} catch (FileNotFoundException e1) {
-								JOptionPane.showMessageDialog(getJFrame(), e1.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-//								e1.printStackTrace();
+							} finally {
+								runOnEdt(new Runnable() {
+									public void run() {
+										startButton.setEnabled(true);
+										getStopButton().setEnabled(false);
+									}
+								});
 							}
-							if (scanner != null) {
-								parser.startParsing(scanner);
-//								parser.parseStructureNamesList(scanner);
-							}else {
-								parser.getPrintableStatistics();
-								//Then?
-							}
-							startButton.setEnabled(true);
-							getStopButton().setEnabled(false);
 						}
 					}.start();
 				}
@@ -638,33 +647,47 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	}
 	
 	
-	@Override
-	public void structureLoaded(Structure structure) {
-		if (settingsManager.isShowWhileProcessing()) {
-//			out.setEnabled(false);
-			getJmolPanel().setStructure(structure);
-//			out.setEnabled(true);
-		}
-	}
-	
+	//N.B. The three callbacks below are invoked by the parser's worker thread,
+	//so each one hands its Swing work to the EDT.
 
 	@Override
-	public void interactionsFoundInStructure(PdbId pdbId) {
-		JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
-		PdbIdListModel model = (PdbIdListModel)foundStructuresWithInteractionsList.getModel();
-		model.addElement(pdbId);
+	public void structureLoaded(final Structure structure) {
 		if (settingsManager.isShowWhileProcessing()) {
-			//this should work in a multithreaded environment, because if 
-			//another thread added a new element, the new element should be 
-			//selected instead of this one
-			foundStructuresWithInteractionsList.setSelectedIndex(model.getSize() - 1); // this will fire event
+			runOnEdt(new Runnable() {
+				public void run() {
+//					out.setEnabled(false);
+					getJmolPanel().setStructure(structure);
+//					out.setEnabled(true);
+				}
+			});
 		}
 	}
-	
+
+
 	@Override
-	public void executeScript(String script) {
+	public void interactionsFoundInStructure(final PdbId pdbId) {
+		runOnEdt(new Runnable() {
+			public void run() {
+				JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
+				PdbIdListModel model = (PdbIdListModel)foundStructuresWithInteractionsList.getModel();
+				model.addElement(pdbId);
+				if (settingsManager.isShowWhileProcessing()) {
+					//Appends run in submission order on the EDT, so the entry
+					//selected here is always the one just added.
+					foundStructuresWithInteractionsList.setSelectedIndex(model.getSize() - 1); // this will fire event
+				}
+			}
+		});
+	}
+
+	@Override
+	public void executeScript(final String script) {
 		if (settingsManager.isShowWhileProcessing()) {
-			getJmolPanel().executeCmd(script);
+			runOnEdt(new Runnable() {
+				public void run() {
+					getJmolPanel().executeCmd(script);
+				}
+			});
 		}
 	}
 	
@@ -786,15 +809,17 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					if(structure == null)
 						return;
 					try {
-						synchronized(this) {
-//							out.setEnabled(false);
-							jmolPanel.setStructure(structure);
-//							out.setEnabled(true);
-							
-							String buffer = ResultManager.generateAfterLoadingJMolScriptString(pdbId);  //TODO review
-//							System.out.println("String To Evaluate is: "+buffer);
-							jmolPanel.executeCmd(buffer);
-						}
+						//Already on the EDT (this is a Swing event), which is the
+						//mutual exclusion that matters here. The previous
+						//synchronized(this) locked the listener instance, an object
+						//no other thread ever locks, so it excluded nothing.
+//						out.setEnabled(false);
+						jmolPanel.setStructure(structure);
+//						out.setEnabled(true);
+
+						String buffer = ResultManager.generateAfterLoadingJMolScriptString(pdbId);  //TODO review
+//						System.out.println("String To Evaluate is: "+buffer);
+						jmolPanel.executeCmd(buffer);
 					} catch (Exception e1) {
 						e1.printStackTrace();
 					}
@@ -917,6 +942,20 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			}
 		});
 	}
+
+	/**
+	 * Runs {@code task} on the Event Dispatch Thread. Swing components may only
+	 * be touched from that thread, and the parser calls back into this class
+	 * from its own worker thread. Runs inline when already on the EDT so that
+	 * callers on the EDT keep their current synchronous behaviour.
+	 */
+	private static void runOnEdt(Runnable task) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			task.run();
+		} else {
+			SwingUtilities.invokeLater(task);
+		}
+	}
 	
 	
 	
@@ -930,8 +969,9 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 
 	
 	class RedirectingStream extends OutputStream {
-		
-		boolean enabled = true;
+
+		//Toggled from the EDT, read by whichever thread is writing to System.out.
+		volatile boolean enabled = true;
 		
 		public void setEnabled(boolean enabled) {
 			this.enabled = enabled;
@@ -1021,33 +1061,39 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
 		int option = fileChooser.showOpenDialog(jFrame);
 		if (option== JFileChooser.APPROVE_OPTION) {
+			startButton.setEnabled(false);
+			final String path = fileChooser.getSelectedFile().getAbsolutePath();
+			System.out.println("File :");
+			System.out.println(path);
+
+			Scanner scanner = null;
+			try {
+				scanner = new Scanner(new FileReader(path));
+			} catch (FileNotFoundException e1) {
+				e1.printStackTrace();
+			}
+			final JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
+			final PdbIdListModel pdbIdListModel = (PdbIdListModel) foundStructuresWithInteractionsList.getModel();
+			if (scanner != null && clean) {
+				pdbIdListModel.clear();
+				//TODO clear the Jmolpanel too.
+				parser.initialize();
+			}
+			final Scanner finalScanner = scanner;
 			new Thread() {
 				public void run() {
-					startButton.setEnabled(false);
-					String path = fileChooser.getSelectedFile().getAbsolutePath();
-					System.out.println("File :");
-					System.out.println(path);
-					
-					Scanner scanner = null;
 					try {
-						scanner = new Scanner(new FileReader(path));
-					} catch (FileNotFoundException e1) {
-						e1.printStackTrace();
-					}
-					final JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
-					final PdbIdListModel pdbIdListModel = (PdbIdListModel) foundStructuresWithInteractionsList.getModel();
-					if (scanner != null) {
-						if (clean) {
-							pdbIdListModel.clear();
-							//TODO clear the Jmolpanel too.
-							parser.initialize();
+						if (finalScanner != null) {
+							parser.importResultsFile(finalScanner);
 						}
-						parser.importResultsFile(scanner);
+						sortResults();
+					} finally {
+						runOnEdt(new Runnable() {
+							public void run() {
+								startButton.setEnabled(true);
+							}
+						});
 					}
-
-					sortResults();
-
-					startButton.setEnabled(true);
 				}
 			}.start();
 		}else {
@@ -1097,12 +1143,17 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	
 	@Override
 	public void sortResults() {
-		System.out.print("Sorting entries...");
-		final JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
-		PdbId selectedPdbId = foundStructuresWithInteractionsList.getSelectedValue();
-		((PdbIdListModel) foundStructuresWithInteractionsList.getModel()).sort();
-		foundStructuresWithInteractionsList.setSelectedValue(selectedPdbId, true);
-		System.out.println("Done");
+		//Also called from the parser's worker thread, so sort on the EDT.
+		runOnEdt(new Runnable() {
+			public void run() {
+				System.out.print("Sorting entries...");
+				final JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
+				PdbId selectedPdbId = foundStructuresWithInteractionsList.getSelectedValue();
+				((PdbIdListModel) foundStructuresWithInteractionsList.getModel()).sort();
+				foundStructuresWithInteractionsList.setSelectedValue(selectedPdbId, true);
+				System.out.println("Done");
+			}
+		});
 	}
 	
 }
