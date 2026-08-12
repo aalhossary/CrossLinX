@@ -52,6 +52,7 @@ public class PreferencesDialogue extends JDialog {
 
 	SettingsManager settingsManager = SettingsManager.getSettingsManager();
 	private JCheckBox domainEnabledCheckBox;
+	private JCheckBox showOnlySelectedModelCheckBox;
 	private final ButtonGroup fileFormatsButtonGroup = new ButtonGroup();
 	
 	
@@ -72,15 +73,15 @@ public class PreferencesDialogue extends JDialog {
 	 * Create the dialog.
 	 */
 	public PreferencesDialogue() {
-		setBounds(100, 100, 450, 320);
+		setBounds(100, 100, 450, 350);
 		getContentPane().setLayout(new BorderLayout());
 		contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 		getContentPane().add(contentPanel, BorderLayout.CENTER);
 		GridBagLayout gbl_contentPanel = new GridBagLayout();
 		gbl_contentPanel.columnWidths = new int[]{304, 97, 0};
-		gbl_contentPanel.rowHeights = new int[]{14, 23, 14, 23, 23, 23, 72, 0};
+		gbl_contentPanel.rowHeights = new int[]{14, 23, 14, 23, 23, 23, 23, 72, 0};
 		gbl_contentPanel.columnWeights = new double[]{0.0, 0.0, Double.MIN_VALUE};
-		gbl_contentPanel.rowWeights = new double[]{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Double.MIN_VALUE};
+		gbl_contentPanel.rowWeights = new double[]{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Double.MIN_VALUE};
 		contentPanel.setLayout(gbl_contentPanel);
 		GridBagConstraints gbc_lblNewLabel = new GridBagConstraints();
 		gbc_lblNewLabel.anchor = GridBagConstraints.NORTHWEST;
@@ -167,6 +168,12 @@ public class PreferencesDialogue extends JDialog {
 		gbc_domainEnabledCheckBox.gridx = 0;
 		gbc_domainEnabledCheckBox.gridy = 6;
 		contentPanel.add(getDomainEnabledCheckBox(), gbc_domainEnabledCheckBox);
+		GridBagConstraints gbc_showOnlySelectedModelCheckBox = new GridBagConstraints();
+		gbc_showOnlySelectedModelCheckBox.anchor = GridBagConstraints.NORTHWEST;
+		gbc_showOnlySelectedModelCheckBox.insets = new Insets(0, 0, 0, 5);
+		gbc_showOnlySelectedModelCheckBox.gridx = 0;
+		gbc_showOnlySelectedModelCheckBox.gridy = 7;
+		contentPanel.add(getShowOnlySelectedModelCheckBox(), gbc_showOnlySelectedModelCheckBox);
 		{
 			JPanel buttonPane = new JPanel();
 			buttonPane.setLayout(new FlowLayout(FlowLayout.RIGHT));
@@ -209,6 +216,7 @@ public class PreferencesDialogue extends JDialog {
 						settingsManager.setAutoFetch(autofetchCheckbox.isSelected());
 						settingsManager.setShowWhileProcessing(showWhileProcessingCheckbox.isSelected());
 						settingsManager.setDomainEnabled(domainEnabledCheckBox.isSelected());
+						settingsManager.setShowOnlySelectedModel(showOnlySelectedModelCheckBox.isSelected());
 						settingsManager.saveSettings(false);
 						dispose();
 					} catch (IOException e1) {
@@ -328,6 +336,14 @@ public class PreferencesDialogue extends JDialog {
 			showWhileProcessingCheckbox.setName("showWhileProcessingCheckbox");
 		}
 		return showWhileProcessingCheckbox;
+	}
+	private JCheckBox getShowOnlySelectedModelCheckBox() {
+		if (showOnlySelectedModelCheckBox == null) {
+			showOnlySelectedModelCheckBox = new JCheckBox("Show only the selected model");
+			showOnlySelectedModelCheckBox.setSelected(settingsManager.isShowOnlySelectedModel());
+			showOnlySelectedModelCheckBox.setName("showOnlySelectedModelCheckBox");
+		}
+		return showOnlySelectedModelCheckBox;
 	}
 	private JCheckBox getDomainEnabledCheckBox() {
 		if (domainEnabledCheckBox == null) {

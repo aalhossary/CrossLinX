@@ -1094,7 +1094,8 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			//a single-model structure is displayed exactly as it always was
 			return;
 		}
-		pendingFrame.set(modelNumber);
+		//"frame 0" is Jmol's way of saying every model at once
+		pendingFrame.set(settingsManager.isShowOnlySelectedModel() ? modelNumber : 0);
 		if (framePending.compareAndSet(false, true)) {
 			runOnJmolThread(new Runnable() {
 				public void run() {
@@ -1404,6 +1405,9 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	@Override
 	public void refreshSettings() {
 		updateListTextFieldContent();
+		//so switching between one model and all of them takes effect now rather than at
+		//the next time the user happens to change model
+		applyViewerModel(currentModelNumber);
 	}
 	
 	

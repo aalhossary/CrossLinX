@@ -29,6 +29,7 @@ public class SettingsManager{
 	private static final String AUTOFETCH_KEY = "autoFetch";
 	private static final String FILEFORMAT_KEY = "fileFormat";
 	private static final String SHOW_WHILE_PROCESSING_KEY = "showWhileProcessing";
+	private static final String SHOW_ONLY_SELECTED_MODEL_KEY = "showOnlySelectedModel";
 	
 	private static final String PROPERTIES_FILENAME = /*System.getProperty("user.dir")+*/ "CrossLinX_settings.ini";
 	public static final boolean debugging = false;
@@ -42,6 +43,8 @@ public class SettingsManager{
 	private boolean domainEnabled;
 
 	private boolean showWhileProcessing;
+
+	private boolean showOnlySelectedModel;
 
 	public void loadSettings() {
 		Properties properties=new Properties();
@@ -82,6 +85,7 @@ public class SettingsManager{
 			this.setAutoFetch(readBooleanProperty(properties, AUTOFETCH_KEY, this.userConfiguration.getFetchBehavior() != FetchBehavior.LOCAL_ONLY));
 			this.setShowWhileProcessing(readBooleanProperty(properties, SHOW_WHILE_PROCESSING_KEY, true));
 			this.setDomainEnabled(readBooleanProperty(properties, DOMAIN_ENABLED_KEY, true));
+			this.setShowOnlySelectedModel(readBooleanProperty(properties, SHOW_ONLY_SELECTED_MODEL_KEY, true));
 
 			System.out.println("Load Settings Ended");
 		} catch (Exception e) {
@@ -126,6 +130,7 @@ public class SettingsManager{
 			properties.setProperty(AUTOFETCH_KEY, String.valueOf(isAutoFetch()));
 			properties.setProperty(SHOW_WHILE_PROCESSING_KEY, String.valueOf(isShowWhileProcessing()));
 			properties.setProperty(DOMAIN_ENABLED_KEY, String.valueOf(isDomainEnabled()));
+			properties.setProperty(SHOW_ONLY_SELECTED_MODEL_KEY, String.valueOf(isShowOnlySelectedModel()));
 
 			properties.store(res, null);
 			System.out.println("Save Settings Ended");
@@ -249,6 +254,22 @@ public class SettingsManager{
 		}else {
 			throw new IOException("Folder ["+workingFolder+"]  NOT found & couldn't be created !");
 		}
+	}
+
+	/**
+	 * Whether the viewer shows only the model picked in the links panel, or all the models
+	 * of an ensemble at once.
+	 * <p>
+	 * On by default: the models of an NMR ensemble sit on top of one another, so showing
+	 * all 38 at once is a thicket, and an interaction highlighted in one of them is lost
+	 * in the other 37.
+	 */
+	public boolean isShowOnlySelectedModel() {
+		return this.showOnlySelectedModel;
+	}
+
+	public void setShowOnlySelectedModel(boolean showOnlySelectedModel) {
+		this.showOnlySelectedModel = showOnlySelectedModel;
 	}
 
 	public boolean isDomainEnabled() {
