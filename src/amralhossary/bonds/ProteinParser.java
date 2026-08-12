@@ -293,7 +293,12 @@ public class ProteinParser implements SettingListener{
 //		atomCache.setUseMmtf(false);
 //	}
 	private ProteinParsingGUI gui;
-	static boolean moreWork;
+	/**
+	 * Cleared by the UI thread when the user presses Stop, and polled by the
+	 * parsing loops running on a worker thread, so it has to be volatile:
+	 * without it the loops may keep reading a cached {@code true} forever.
+	 */
+	static volatile boolean moreWork;
 	private PrintStream out;
 	private PrintStream tsvOut;
 	PrintStream log= System.out;
