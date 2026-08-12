@@ -6,6 +6,7 @@
 	<version>0.7.1</version>
 	<properties>
 		<biojava.version>7.2.6</biojava.version>
+		<jmol.version>16.4.1</jmol.version>
 	</properties>
 	<repositories>
 		<repository>
@@ -64,9 +65,29 @@
 			<groupId>org.biojava</groupId>
 			<artifactId>biojava-structure-gui</artifactId>
 			<version>${biojava.version}</version>
+			<exclusions>
+				<!-- BioJava pins Jmol 14.31.10, the newest on Maven Central
+				     (2020). Excluded in favour of the current release below. -->
+				<exclusion>
+					<groupId>net.sourceforge.jmol</groupId>
+					<artifactId>jmol</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
-	<!-- <dependency> <groupId>net.sourceforge.jmol</groupId> <artifactId>jmol</artifactId> 
-		<version>14.31.10</version> </dependency> -->
+		<!-- Jmol is not published to Maven Central beyond 14.31.10, so the
+		     current release is vendored in local-maven-repo. To move to a newer
+		     one: download the binary zip from https://jmol.sourceforge.net,
+		     then from the project root run
+		       mvn install:install-file -Dfile=<path>/Jmol.jar \
+		         -DgroupId=net.sourceforge.jmol -DartifactId=jmol \
+		         -Dversion=<ver> -Dpackaging=jar \
+		         -DlocalRepositoryPath=local-maven-repo
+		     and bump jmol.version. -->
+		<dependency>
+			<groupId>net.sourceforge.jmol</groupId>
+			<artifactId>jmol</artifactId>
+			<version>${jmol.version}</version>
+		</dependency>
 
 	<!-- <dependency> <groupId>docopt</groupId> <artifactId>docopt.java</artifactId> 
 		<version>0.6.0-SNAPSHOT</version> </dependency> -->
