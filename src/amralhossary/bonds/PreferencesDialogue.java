@@ -79,7 +79,8 @@ public class PreferencesDialogue extends JDialog {
 		getContentPane().add(contentPanel, BorderLayout.CENTER);
 		GridBagLayout gbl_contentPanel = new GridBagLayout();
 		gbl_contentPanel.columnWidths = new int[]{304, 97, 0};
-		gbl_contentPanel.rowHeights = new int[]{14, 23, 14, 23, 23, 23, 23, 72, 0};
+		//row 6 stays the tall one: the file formats panel spans rows 4-6 and needs the room
+		gbl_contentPanel.rowHeights = new int[]{14, 23, 14, 23, 23, 23, 72, 23, 0};
 		gbl_contentPanel.columnWeights = new double[]{0.0, 0.0, Double.MIN_VALUE};
 		gbl_contentPanel.rowWeights = new double[]{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Double.MIN_VALUE};
 		contentPanel.setLayout(gbl_contentPanel);
