@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="ParsingUI" type="Application" factoryName="Application">
+    <envs>
+      <env name="DISPLAY" value=":99" />
+    </envs>
+    <option name="MAIN_CLASS_NAME" value="amralhossary.bonds.ParsingUI" />
+    <module name="corsslinx" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

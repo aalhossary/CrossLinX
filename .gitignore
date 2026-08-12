@@ -1,3 +1,9 @@
 /CrossLinX_settings.ini
 /target/maven-status/
 /target/classes/
+/target/generated-sources/
+# IntelliJ IDEA: per-user project settings and modules are regenerated from pom.xml.
+# Shared run configurations live in /.run/ and are tracked.
+/.idea/
+/.claude/
+*.iml
