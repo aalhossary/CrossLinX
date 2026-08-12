@@ -4,6 +4,9 @@
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>corsslinx</artifactId>
 	<version>0.7.1</version>
+	<properties>
+		<biojava.version>7.2.6</biojava.version>
+	</properties>
 	<repositories>
 		<repository>
 			<id>local-maven-repo</id>
@@ -24,8 +27,10 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>3.8.1</version>
 				<configuration>
-					<release>8</release>
-					<!-- <target>1.8</target> -->
+					<!-- BioJava 7 and ciftools-java 7 are compiled for Java 11,
+					     so the release target cannot stay at 8: the jar would
+					     claim a compatibility it does not have. -->
+					<release>11</release>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -53,12 +58,12 @@
 		<dependency>
 			<groupId>org.biojava</groupId>
 			<artifactId>biojava-structure</artifactId>
-			<version>6.0.4-SNAPSHOT</version>
+			<version>${biojava.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.biojava</groupId>
 			<artifactId>biojava-structure-gui</artifactId>
-			<version>6.0.4-SNAPSHOT</version>
+			<version>${biojava.version}</version>
 		</dependency>
 	<!-- <dependency> <groupId>net.sourceforge.jmol</groupId> <artifactId>jmol</artifactId> 
 		<version>14.31.10</version> </dependency> -->
