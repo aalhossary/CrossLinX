@@ -877,6 +877,12 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					//selecting a structure should populate the interactions list
 					//populate foundLinksList
 					List<String> bondsList = ResultManager.retreiveBondsList(pdbId);
+					if (bondsList == null) {
+						//no cache file for this structure - the results were loaded from a
+						//file written elsewhere, or the cache was cleaned out under us
+						getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
+						return;
+					}
 					BondListItem[] bondListItems = new BondListItem[bondsList.size()];
 					for (int i = 0; i < bondListItems.length; i++) {
 						bondListItems[i] = new BondListItem(bondsList.get(i));

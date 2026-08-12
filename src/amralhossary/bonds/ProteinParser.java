@@ -740,39 +740,76 @@ public class ProteinParser implements SettingListener{
 	 */
 	public boolean parseStructure(String token, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
 		try {
-			boolean chainsInStructureParsedSuccessfully = parseChainsInStructure(token, cubes, logStringBuilder);
-			if (chainsInStructureParsedSuccessfully) {
-				Map<ResidueNumber, Set<Bond>> foundInteractions = findInteractionsInCubes(cubes, logStringBuilder);
-				
-				if (foundInteractions.size() > 0){
-					totalFoundStructuresWithInteractions.increment();
-					// convert foundInteractions into listofDetailedConnectionsAsString (with coords)
-					Set<Bond> allBonds = new LinkedHashSet<Bond>();
-					Iterator<Set<Bond>> bondsIterator = foundInteractions.values().iterator();
-					while(bondsIterator.hasNext()) {
-						Set<Bond> bonds = bondsIterator.next();
-						allBonds.addAll(bonds);
-					}
-					String listofDetailedConnectionsAsString = ResultManager.createListofConnectionsAsString(allBonds);				
-					
-					//log it to positiveresults.txt
-					StringBuilder stringForParsablePositiveResultsFileSB = new StringBuilder(ResultManager.START_OF_STRUCTURE_PREFIX).append(token).append(System.getProperty("line.separator"));
-					stringForParsablePositiveResultsFileSB.append(listofDetailedConnectionsAsString);
-					String stringForParsablePositiveResultsFile = stringForParsablePositiveResultsFileSB.toString();
-					this.out.println(stringForParsablePositiveResultsFile);
-
-					//reduce the string by removing atom coordinates ==> xxxxxxxxNoCoords
-					String listofConnectionsAsStringNoCoords = ResultManager.removeAtomCoords(listofDetailedConnectionsAsString);
-					// show it to the user and in log
-					logStringBuilder.append(listofConnectionsAsStringNoCoords).append('\n');
-					//note that ResultManager.removeAtomCoords() is called in parseFromScanner() as well.
-					
-					//parse listofDetailedConnectionsAsString
-					parseFromScanner(new Scanner(stringForParsablePositiveResultsFile), false);
-				}
-				return true;
+			Structure currentStructure = loadStructure(token, logStringBuilder);
+			if (currentStructure == null) {
+				return false;
 			}
-			return false;
+			String chainFilter = token.substring(4);
+			final int nrModels = currentStructure.nrModels();
+			//Only an ensemble needs its interactions labelled with a model. A structure
+			//with a single model is written exactly as it always was, so its results files
+			//stay readable by, and identical to, what earlier versions produced.
+			final boolean tagModels = nrModels > 1;
+
+			//Every model's interactions go into one block, because parseFromScanner frames
+			//a block as "in structure#TOKEN" + lines + blank line, and persistBondsList
+			//WRITES rather than appends one cache file per structure. One block per model
+			//would leave only the last model in the cache.
+			StringBuilder allModelsConnections = new StringBuilder();
+
+			for (int modelIndex = 0; moreWork && modelIndex < nrModels; modelIndex++) {
+				//mmCIF writes pdbx_PDB_model_num as modelIndex + 1 and Jmol numbers its
+				//frames the same way, so this is the number the viewer will answer to.
+				final int modelNumber = modelIndex + 1;
+
+				if (! parseChainsInModel(currentStructure, modelIndex, chainFilter, cubes, logStringBuilder)) {
+					if (modelIndex == 0) {
+						return false; //nothing to parse in this file at all
+					}
+					continue;
+				}
+
+				Map<ResidueNumber, Set<Bond>> foundInteractions = findInteractionsInCubes(cubes, modelNumber, logStringBuilder);
+				if (foundInteractions == null) {
+					//a cube name that would not parse; the model is unusable, the rest may be fine
+					logStringBuilder.append("Failed to search model ").append(modelNumber)
+							.append(" of ").append(token).append('\n');
+					continue;
+				}
+				if (foundInteractions.isEmpty()) {
+					continue;
+				}
+				// convert foundInteractions into listofDetailedConnectionsAsString (with coords)
+				Set<Bond> allBonds = new LinkedHashSet<Bond>();
+				Iterator<Set<Bond>> bondsIterator = foundInteractions.values().iterator();
+				while(bondsIterator.hasNext()) {
+					Set<Bond> bonds = bondsIterator.next();
+					allBonds.addAll(bonds);
+				}
+				allModelsConnections.append(ResultManager.createListofConnectionsAsString(allBonds,
+						tagModels ? modelNumber : ResultManager.UNTAGGED));
+			}
+
+			if (allModelsConnections.length() > 0) {
+				//counted once per structure however many of its models contributed
+				totalFoundStructuresWithInteractions.increment();
+
+				//log it to positiveresults.txt
+				StringBuilder stringForParsablePositiveResultsFileSB = new StringBuilder(ResultManager.START_OF_STRUCTURE_PREFIX).append(token).append(System.getProperty("line.separator"));
+				stringForParsablePositiveResultsFileSB.append(allModelsConnections);
+				String stringForParsablePositiveResultsFile = stringForParsablePositiveResultsFileSB.toString();
+				this.out.println(stringForParsablePositiveResultsFile);
+
+				//reduce the string by removing atom coordinates ==> xxxxxxxxNoCoords
+				String listofConnectionsAsStringNoCoords = ResultManager.removeAtomCoords(allModelsConnections.toString());
+				// show it to the user and in log
+				logStringBuilder.append(listofConnectionsAsStringNoCoords).append('\n');
+				//note that ResultManager.removeAtomCoords() is called in parseFromScanner() as well.
+
+				//parse listofDetailedConnectionsAsString
+				parseFromScanner(new Scanner(stringForParsablePositiveResultsFile), false);
+			}
+			return true;
 		} catch (Exception e) {
 			System.err.println("Error While parsing " + token);
 			e.printStackTrace();
@@ -780,71 +817,108 @@ public class ProteinParser implements SettingListener{
 		}
 	}
 
-	boolean parseChainsInStructure(String token, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
+	/**
+	 * Reads the structure named by the token, counting the attempt whether or not it works.
+	 * @return the structure, or null if it could not be read
+	 */
+	Structure loadStructure(String token, StringBuilder logStringBuilder) {
 		this.attemptedPDBFiles.increment();
-		boolean structureParsedSuccessfully = true;
 		try {
-			
 			String structureName = token.substring(0, 4);
 			String extension = token.substring(4);
 			logStringBuilder.append('\n');
 			logStringBuilder.append("Starting to parse ").append(token).append(": ").append(structureName).append("\t").append(extension).append('\n');
 			Structure currentStructure = atomCache.getStructure(structureName);
-			
+
 			if (gui != null) {
 				gui.structureLoaded(currentStructure);
 			}
 			this.successfullyParsedStructures.increment();
-//			Hashtable<String, ArrayList<GroupOfInterest>> cubes = ProteinParser.cubes;
-			cubes.clear();
-			
-			List<Chain> chains = currentStructure.getChains(); //TODO I get all chains of the FIRST model. Consider getting all models and updating output identifiers
-			if (chains==null || chains.isEmpty()) {
+			return currentStructure;
+		} catch (IOException e) {
+			logStringBuilder.append("NOT FOUND or Failed to parse").append('\n');
+			this.failedToParseStructure.increment();
+		} catch (StructureException e) {
+			logStringBuilder.append("Failed to parse").append('\n');
+			this.failedToParseStructure.increment();
+		}
+		return null;
+	}
+
+	/**
+	 * Fills the cubes with one model's residues of interest, and nothing else.
+	 * <p>
+	 * Counters describing the file rather than the work - empty files, chains skipped,
+	 * chains not found - are taken from the first model only, since every model of a
+	 * structure holds the same chains. Counters describing work actually done - chains
+	 * parsed, amino acids and het groups found - are left to accumulate across models,
+	 * because that work really is done once per model.
+	 *
+	 * @param modelIndex 0-based, as BioJava numbers models
+	 * @param chainFilter the chain name to restrict to, or empty/null for all chains
+	 * @return false if the model holds no chains at all
+	 */
+	boolean parseChainsInModel(Structure currentStructure, int modelIndex, String chainFilter,
+			Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
+		//Clear BEFORE filling, never after. Two reasons, both worth keeping:
+		// 1. The map then physically cannot hold two models at once, so an interaction
+		//    between atoms of different models is impossible by construction rather than
+		//    by convention. findInteractionsInCubes also keys its results by
+		//    ResidueNumber, which is not model-aware - the same residue numbers recur in
+		//    every model, so two models in one map would silently collide.
+		// 2. It is correct even when the previous model exited early, through an exception
+		//    or the Stop button, where a trailing clear would have been skipped.
+		cubes.clear();
+
+		final boolean firstModel = (modelIndex == 0);
+		List<Chain> chains = currentStructure.getChains(modelIndex);
+		if (chains==null || chains.isEmpty()) {
+			if (firstModel) {
 				this.emptyFiles.increment();
-				logStringBuilder.append("Unexpected error: NO chains are found AT ALL in the file ").append(structureName).append('\n');
-				return false;
 			}
-			boolean chainFound=false;
-			if (extension== null || extension.equals("")) {
-				for (Chain chain : chains) {
+			logStringBuilder.append("Unexpected error: NO chains are found AT ALL in model ")
+					.append(modelIndex + 1).append(" of ").append(currentStructure.getPdbId()).append('\n');
+			return false;
+		}
+		boolean chainFound=false;
+		if (chainFilter== null || chainFilter.equals("")) {
+			for (Chain chain : chains) {
+				parseChain(chain, cubes, logStringBuilder);
+			}
+			chainFound=true;
+		} else{
+			for (Chain chain : chains) {
+				if (chainFilter.equalsIgnoreCase(chain.getName())) {
 					parseChain(chain, cubes, logStringBuilder);
-				}
-				chainFound=true;
-			} else{
-				for (Chain chain : chains) {
-					if (extension.equalsIgnoreCase(chain.getName())) {
-						parseChain(chain, cubes, logStringBuilder);
-						chainFound=true;
-					}else {
-						logStringBuilder.append("skipped chain ").append(chain.getName()).append('\n');
+					chainFound=true;
+				}else {
+					logStringBuilder.append("skipped chain ").append(chain.getName()).append('\n');
+					if (firstModel) {
 						this.chainsSkipped.increment();
 					}
 				}
 			}
-			if(! chainFound){
-				logStringBuilder.append("Unexpected error: chain ID ").append(extension).append(" NOT FOUND in file ").append(token).append('\n');
+		}
+		if(! chainFound){
+			logStringBuilder.append("Unexpected error: chain ID ").append(chainFilter)
+					.append(" NOT FOUND in ").append(currentStructure.getPdbId()).append('\n');
+			if (firstModel) {
 				this.chainsNotFound.increment();
 			}
-		} catch (IOException e) {
-			logStringBuilder.append("NOT FOUND or Failed to parse").append('\n');
-			this.failedToParseStructure.increment();
-			structureParsedSuccessfully=false;
-		} catch (StructureException e) {
-			logStringBuilder.append("Failed to parse").append('\n');
-			this.failedToParseStructure.increment();
-			structureParsedSuccessfully=false;
 		}
-		return structureParsedSuccessfully;
+		return true;
 	}
 
 	/**
 	 * This method finds interactions and report its output in an Map <{@link GroupOfInterest}, {@link Set}<{@link Bond}>.
 	 * Additionally, all log text is collected via logStringBuilder, in order not to mix with other threads.
 	 * @param cubes
+	 * @param modelNumber the 1-based model the cubes were filled from. Carried through only
+	 *        so the TSV row can name it; a Group offers no cheap way back to its model.
 	 * @param logStringBuilder
-	 * @return
+	 * @return the interactions found, or null if a cube name could not be read
 	 */
-	Map<ResidueNumber, Set<Bond>> findInteractionsInCubes(Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
+	Map<ResidueNumber, Set<Bond>> findInteractionsInCubes(Hashtable<String, ArrayList<GroupOfInterest>> cubes, int modelNumber, StringBuilder logStringBuilder) {
 
 		Hashtable<ResidueNumber, Set<Bond>> foundInteractions = new Hashtable<>();
 		
@@ -892,7 +966,7 @@ public class ProteinParser implements SettingListener{
 									continue;
 								boolean newConfirmedLinks = false;
 								for (GroupOfInterest residue2 : destCubeOfGroupsOfInterest) {
-									if(confirmLink(residue1, residue2, operation, subOperation, interactions, simpleDateFormat))
+									if(confirmLink(residue1, residue2, operation, subOperation, interactions, modelNumber, simpleDateFormat))
 										newConfirmedLinks = true;
 								}
 								if (newConfirmedLinks) {
@@ -910,17 +984,19 @@ public class ProteinParser implements SettingListener{
 
 	private void writeTsvHeader(File tsvPositiveResultsFile) throws FileNotFoundException {
 		this.tsvOut = new PrintStream(tsvPositiveResultsFile);
-		this.tsvOut.print("PDB ID\tRes1\tC1\tRes1#\tA1\tAltLoc1\t<-\tDistance\t->\tRes2\tC2\tRes2#\tA2\tAltLoc2\t");
+		this.tsvOut.print("PDB ID\tModel\tRes1\tC1\tRes1#\tA1\tAltLoc1\t<-\tDistance\t->\tRes2\tC2\tRes2#\tA2\tAltLoc2\t");
 		this.tsvOut.print("bond type\tsubtype / comments\tExp. Tech.\tNMR?\tResolution\tRFree\tDep Date\tRel Date\tMod Date\tSource Organism Scientific\t");
 		this.tsvOut.print(String.format("%s\t%s\t%s\t%s\t", PILI_PILUS, ADHESIN_ADHESION, UBIQ, CYCLO_CYCLIC_LASSO));
 		this.tsvOut.println("Title");
 	}
 
-	private void outputTsv(Atom atom1, Atom atom2, double distance, String operation, String subOperation, SimpleDateFormat simpleDateFormat) {
+	private void outputTsv(Atom atom1, Atom atom2, double distance, String operation, String subOperation, int modelNumber, SimpleDateFormat simpleDateFormat) {
 		Group residue1 = ((AtomImpl) atom1).getGroup();
 		Group residue2 = ((AtomImpl) atom2).getGroup();
 		Structure structure = residue1.getChain().getStructure();
 		StringBuilder str = new StringBuilder(structure.getPdbId().getId()).append('\t');
+		//always written, 1 for a single-model structure, so every row can be attributed
+		str.append(modelNumber).append('\t');
 		
 		str.append(residue1.getPDBName()).append('\t')
 		.append(residue1.getChain().getName()).append('\t') // I am reporting the chain authId (the one written in PDB) now.
@@ -1039,7 +1115,7 @@ public class ProteinParser implements SettingListener{
 		return null;
 	}
 
-	private boolean confirmLink(GroupOfInterest group1, GroupOfInterest group2, String operation, String subOperation, Set<Bond> interactions, SimpleDateFormat simpleDateFormat) {
+	private boolean confirmLink(GroupOfInterest group1, GroupOfInterest group2, String operation, String subOperation, Set<Bond> interactions, int modelNumber, SimpleDateFormat simpleDateFormat) {
 		//check the group type and set parameters and output list
 		@SuppressWarnings("unused")
 		float cutoff, cutoff2;
@@ -1074,7 +1150,7 @@ public class ProteinParser implements SettingListener{
 			cutoff = 2.1f;
 			cutoff2= 4.41f;
 			if (atoms2[0] == null) {
-				return confirmLink(group1, group2, NXS_BOND, CSO_WITH_MISSING_O, interactions, simpleDateFormat);
+				return confirmLink(group1, group2, NXS_BOND, CSO_WITH_MISSING_O, interactions, modelNumber, simpleDateFormat);
 			}
 		}else if (operation == ESTER_BOND) {
 			atoms1 = group1.getKeyOAtoms();
@@ -1128,7 +1204,7 @@ public class ProteinParser implements SettingListener{
 				if (distanceSquared <= cutoff2) {
 					confirmed = true;
 					interactions.add(new BondImpl(atom1, atom2, 1, false));
-					outputTsv(atom1, atom2, Math.sqrt(distanceSquared), operation, subOperation, simpleDateFormat);
+					outputTsv(atom1, atom2, Math.sqrt(distanceSquared), operation, subOperation, modelNumber, simpleDateFormat);
 					break outer;
 				}
 			}
