@@ -48,6 +48,28 @@ public class ResultManager {
 	private static final String INTERACTION_SEPARATOR = " \t-> ";
 
 	/**
+	 * Marks which model of the structure an interaction was found in, written in front of
+	 * the interaction itself:
+	 * <pre>model#12 | [LYS]48:B.NZ {…} 	-&gt; [GLY]76:C.C {…}</pre>
+	 * An interaction line always starts with '[', so this can never be mistaken for one.
+	 * @see #tagWithModel(String, int)
+	 */
+	private static final String MODEL_TAG_PREFIX = "model#";
+	private static final String MODEL_TAG_SUFFIX = " | ";
+	/**
+	 * Model number meaning "do not write a tag at all", used for the single-model
+	 * structures that are the overwhelming majority. Results files written for them stay
+	 * byte for byte what earlier versions wrote.
+	 */
+	public static final int UNTAGGED = 0;
+	/**
+	 * What {@link #modelOf(String)} answers for a line carrying no tag. Files written
+	 * before models were understood hold one model's interactions, and Jmol numbers the
+	 * first model 1, so that is the model those lines belong to.
+	 */
+	public static final int DEFAULT_MODEL = 1;
+
+	/**
 	 * Spacefill radius given to every atom that takes part in an interaction, applied once
 	 * when the structure is loaded.
 	 */
@@ -190,6 +212,17 @@ public class ResultManager {
 		//the interaction picked in the previously shown structure. See
 		//generateLinkSelectedJMolScriptString, which is what turns halos back on.
 		buffer.append("set selectionHalos OFF;\n");
+		//An atom expression such as [LYS]48:B.NZ names an atom in EVERY model at once
+		//while selectAllModels is TRUE, and zoomto then centres on the average of all of
+		//them - which for an NMR ensemble is a point the user never asked to look at.
+		//Restricting selection to the displayed frame makes each model behave like the
+		//single structure it represents.
+		//
+		//This has to stay the LAST line of this script and must NOT move into
+		//GENERAL_SELECTION_SCRIPT: everything above styles the interacting atoms, and that
+		//styling has to reach every model while the flag is still TRUE, or models 2..N
+		//would load unstyled. The restriction applies from here on.
+		buffer.append("set selectAllModels FALSE;\n");
 		return buffer.toString();
 	}
 
@@ -200,7 +233,8 @@ public class ResultManager {
 	 */
 	private static Set<String> collectInteractingAtoms(List<String> bondsList) {
 		Set<String> interactingAtoms = new HashSet<String>();
-		for (String bondString : bondsList) {
+		for (String taggedBondString : bondsList) {
+			String bondString = stripModelTag(taggedBondString);
 			int separatorIndex = bondString.indexOf(INTERACTION_SEPARATOR);
 			interactingAtoms.add(bondString.substring(0, separatorIndex));
 			interactingAtoms.add(bondString.substring(separatorIndex+INTERACTION_SEPARATOR.length())); //,line.indexOf('('));
@@ -245,8 +279,9 @@ public class ResultManager {
 	 * @param pdbId structure the interaction belongs to; used to find the atoms to reset.
 	 *              May be null, in which case the previous pick is left enlarged.
 	 */
-	public static String generateLinkSelectedJMolScriptString(String linkFullString, PdbId pdbId) {
+	public static String generateLinkSelectedJMolScriptString(String taggedLinkFullString, PdbId pdbId) {
 
+		String linkFullString = stripModelTag(taggedLinkFullString);
 		int separatorIndex = linkFullString.indexOf(INTERACTION_SEPARATOR);
 		String leftSide = linkFullString.substring(0, separatorIndex);
 		String rightSide = linkFullString.substring(separatorIndex+INTERACTION_SEPARATOR.length()); //,line.indexOf('('));
@@ -344,13 +379,71 @@ public static File prepareFilesList(boolean temp) {
 	 * @return
 	 */
 	public static String createListofConnectionsAsString(Set<Bond> bonds) {
+		return createListofConnectionsAsString(bonds, UNTAGGED);
+	}
+
+	/**
+	 * As {@link #createListofConnectionsAsString(Set)}, but records which model each
+	 * interaction was found in.
+	 * @param modelNumber the 1-based model the bonds came from, or {@link #UNTAGGED} for a
+	 *        structure with only one model, which is written exactly as it always was
+	 */
+	public static String createListofConnectionsAsString(Set<Bond> bonds, int modelNumber) {
 		StringBuilder listOfConnections = new StringBuilder();
 		for (Bond bond : bonds) {
 			String connectionString = createInteractionString(bond);
-			listOfConnections.append(connectionString);
+			listOfConnections.append(tagWithModel(connectionString, modelNumber));
 			listOfConnections.append(System.lineSeparator());
 		}
 		return listOfConnections.toString();
+	}
+
+	/**
+	 * Puts the model tag in front of an interaction line.
+	 * @param modelNumber {@link #UNTAGGED} returns the line untouched
+	 */
+	public static String tagWithModel(String interactionLine, int modelNumber) {
+		if (modelNumber == UNTAGGED) {
+			return interactionLine;
+		}
+		return MODEL_TAG_PREFIX + modelNumber + MODEL_TAG_SUFFIX + interactionLine;
+	}
+
+	/**
+	 * Removes the model tag, if there is one. Every place that hands a line to Jmol has to
+	 * do this first: the tag is ours, and Jmol would choke on it.
+	 */
+	public static String stripModelTag(String interactionLine) {
+		if (! interactionLine.startsWith(MODEL_TAG_PREFIX)) {
+			return interactionLine;
+		}
+		int endOfTag = interactionLine.indexOf(MODEL_TAG_SUFFIX);
+		if (endOfTag < 0) {
+			return interactionLine;
+		}
+		return interactionLine.substring(endOfTag + MODEL_TAG_SUFFIX.length());
+	}
+
+	/**
+	 * Which model an interaction line belongs to.
+	 * @return the tagged model number, or {@link #DEFAULT_MODEL} when the line carries no
+	 *         tag - which is every line in a results file written for a single-model
+	 *         structure, and every line in a file written before models were understood
+	 */
+	public static int modelOf(String interactionLine) {
+		if (! interactionLine.startsWith(MODEL_TAG_PREFIX)) {
+			return DEFAULT_MODEL;
+		}
+		int endOfTag = interactionLine.indexOf(MODEL_TAG_SUFFIX);
+		if (endOfTag < 0) {
+			return DEFAULT_MODEL;
+		}
+		try {
+			return Integer.parseInt(interactionLine.substring(MODEL_TAG_PREFIX.length(), endOfTag).trim());
+		} catch (NumberFormatException e) {
+			//a line that only looks like a tag; treat it as untagged rather than fail
+			return DEFAULT_MODEL;
+		}
 	}
 
 	/** the first is usually the pi system.
@@ -368,6 +461,7 @@ public static File prepareFilesList(boolean temp) {
 	public static HashSet<String> decodeInteractionString(String nextLine, Hashtable<String,HashSet<String>> interactions) {
 
 		//extract source
+		nextLine = stripModelTag(nextLine);
 		final int interactionSeparatorPosition = nextLine.indexOf(INTERACTION_SEPARATOR);
 		String source = nextLine.substring(0,interactionSeparatorPosition);
 		//get targets or create a new set
