@@ -58,6 +58,9 @@ import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
 import amralhossary.bonds.SettingsManager.SettingListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -114,6 +117,28 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JButton startButton = null;
 	private JButton stopButton = null;
 	private JmolPanel jmolPanel = null;
+	/**
+	 * Every call into the Jmol viewer is made from this one thread.
+	 * <p>
+	 * It has to be a single thread, because the viewer is not thread-safe: loading a
+	 * structure replaces state belonging to the whole viewer, and a script running at
+	 * the same time sees it half-built. Being a single thread also keeps the calls in
+	 * submission order, so a script always runs against the structure it was generated
+	 * for.
+	 * <p>
+	 * And it has to be a thread other than the EDT. Jmol renders its animations by
+	 * asking Swing to repaint, which only happens once the EDT is free; a script run
+	 * on the EDT with {@code scriptWait} blocks it for the script's whole duration -
+	 * over three seconds for the bond zoom, which contains a {@code delay 1.0} - so
+	 * nothing is drawn until the animation is already over.
+	 */
+	private final ExecutorService jmolThread = Executors.newSingleThreadExecutor(new ThreadFactory() {
+		public Thread newThread(Runnable r) {
+			Thread thread = new Thread(r, "Jmol");
+			thread.setDaemon(true);
+			return thread;
+		}
+	});
 	/** Latest structure waiting to be shown; see {@link #structureLoaded(Structure)}. */
 	private final AtomicReference<Structure> pendingStructure = new AtomicReference<Structure>();
 	/** Whether a list selection is already queued; see {@link #interactionsFoundInStructure(PdbId)}. */
@@ -653,24 +678,25 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	}
 	
 	
-	//N.B. The three callbacks below are invoked by the parser's worker thread,
-	//so each one hands its Swing work to the EDT.
+	//N.B. The three callbacks below are invoked by the parser's worker threads.
+	//Swing work goes to the EDT; anything touching the viewer goes to the Jmol thread.
 
 	@Override
 	public void structureLoaded(final Structure structure) {
 		if (settingsManager.isShowWhileProcessing()) {
 			//Parsing runs in parallel on a fork/join pool and can produce
 			//structures far faster than Jmol can draw them, so queueing every
-			//one would grow the EDT queue without bound. Only the most recent
-			//structure is worth showing: park it and let the pending repaint
+			//one would grow the queue without bound. Only the most recent
+			//structure is worth showing: park it and let the pending load
 			//pick up whatever is latest when it runs.
 			if (pendingStructure.getAndSet(structure) == null) {
-				runOnEdt(new Runnable() {
+				final JmolPanel panel = getJmolPanel();
+				runOnJmolThread(new Runnable() {
 					public void run() {
 						Structure latest = pendingStructure.getAndSet(null);
 						if (latest != null) {
 //							out.setEnabled(false);
-							getJmolPanel().setStructure(latest);
+							panel.setStructure(latest);
 //							out.setEnabled(true);
 						}
 					}
@@ -829,29 +855,22 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 						getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
 						return;
 					}
-					JmolPanel jmolPanel = getJmolPanel();
 					PdbId pdbId = foundStructuresWithInteractionsList.getSelectedValue();
-					
+
 					//N.B. You can replace the block below with ResultManager.generateFileLoadJMolScript(pdbId)
 					Structure structure = ResultManager.getStructureById(pdbId);
 					if(structure == null)
 						return;
 					try {
-						//Already on the EDT (this is a Swing event), which is the
-						//mutual exclusion that matters here. The previous
-						//synchronized(this) locked the listener instance, an object
-						//no other thread ever locks, so it excluded nothing.
-						//Loading the structure and running its script must stay a
-						//single unit, hence the waiting form of the script call:
-						//otherwise the next selection can load a different structure
-						//before this script runs against it.
+						//The load and the script that styles it are handed over as one
+						//task, so no other Jmol work can slip between them and leave the
+						//script running against a different structure. They deliberately
+						//do NOT run here on the EDT: Jmol draws by asking Swing to
+						//repaint, so occupying the EDT for the length of a script means
+						//none of its animation is ever shown.
 //						out.setEnabled(false);
-						jmolPanel.setStructure(structure);
+						showStructure(structure, ResultManager.generateAfterLoadingJMolScriptString(pdbId));  //TODO review
 //						out.setEnabled(true);
-
-						String buffer = ResultManager.generateAfterLoadingJMolScriptString(pdbId);  //TODO review
-//						System.out.println("String To Evaluate is: "+buffer);
-						executeJmolScript(buffer);
 					} catch (Exception e1) {
 						e1.printStackTrace();
 					}
@@ -990,22 +1009,53 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	}
 
 	/**
-	 * Runs a Jmol script and waits for it to finish.
+	 * Queues a Jmol script on the {@link #jmolThread}, where it runs to completion.
 	 * <p>
-	 * {@link JmolPanel#executeCmd(String)} calls {@code evalString}, which only
-	 * queues the script: Jmol runs it later on its own ScriptQueueThread. A
-	 * script generated for one structure could therefore execute after the next
-	 * structure had been loaded, and its atom indices no longer existed in the
-	 * model, which failed inside Jmol with errors such as
+	 * {@link JmolPanel#executeCmd(String)} calls {@code evalString}, which only hands
+	 * the script to Jmol's own ScriptQueueThread. A script generated for one structure
+	 * could therefore execute after the next structure had been loaded, when its atom
+	 * indices no longer existed in the model, failing inside Jmol with errors such as
 	 * "ArrayIndexOutOfBoundsException: Index 3282 out of bounds for length 3282".
-	 * Running the script to completion keeps it bound to the structure it was
-	 * generated for.
+	 * Running it with {@code scriptWait} on our own single thread keeps it bound to
+	 * the structure it was generated for, while leaving the EDT free to draw the
+	 * animation the script asks for.
 	 */
 	private void executeJmolScript(String script) {
 		if (script == null) {
 			return;
 		}
-		getJmolPanel().getViewer().scriptWait(script);
+		final JmolPanel panel = getJmolPanel();
+		final String toRun = script;
+		runOnJmolThread(new Runnable() {
+			public void run() {
+				panel.getViewer().scriptWait(toRun);
+			}
+		});
+	}
+
+	/**
+	 * Hands {@code task} to the {@link #jmolThread}. Never call the viewer directly:
+	 * everything that touches it goes through here, in submission order.
+	 */
+	private void runOnJmolThread(Runnable task) {
+		jmolThread.execute(task);
+	}
+
+	/**
+	 * Loads {@code structure} into the viewer and, if given, runs {@code afterLoadScript}
+	 * against it. Both happen in one task so that no other Jmol work can slip between
+	 * the load and the script that styles it.
+	 */
+	private void showStructure(final Structure structure, final String afterLoadScript) {
+		final JmolPanel panel = getJmolPanel();
+		runOnJmolThread(new Runnable() {
+			public void run() {
+				panel.setStructure(structure);
+				if (afterLoadScript != null) {
+					panel.getViewer().scriptWait(afterLoadScript);
+				}
+			}
+		});
 	}
 	
 	

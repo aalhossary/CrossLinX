@@ -117,8 +117,8 @@ public class ResultManager {
 	 * a] file formatting 
 	 * b] TODO (+/-) ED Map loading scripts
 	 * 
-	 * please notice that if {@link #createInteractionString(AminoAcid)} changed, this method <b>MUST be updated</b>
-	 * @param token
+	 * please notice that if {@link #createInteractionString(Bond)} changed, this method <b>MUST be updated</b>
+	 * @param pdbId
 	 * @return
 	 */
 	public static String generateAfterLoadingJMolScriptString(PdbId pdbId) {
