@@ -676,7 +676,9 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					startButton.setEnabled(false);
 					getStopButton().setEnabled(true);
 					((PdbIdListModel)getFoundStructuresWithInteractionsList().getModel()).clear();
-					getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
+					//a new run replaces every result, so nothing carries over - including
+					//which interaction the selection was following
+					showBondsOfStructure(NO_BOND_LIST_ITEMS, 1);
 					Scanner scanner = null;
 					ButtonModel selectionModel = getButtonGroup().getSelection();
 					try {
@@ -1073,7 +1075,10 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	 */
 	private void modelChanged(int modelNumber, boolean stillDragging) {
 		currentModelNumber = modelNumber;
-		fillBondsListForCurrentModel();
+		//The zoom script runs over a second - it contains an explicit delay - so running it
+		//per drag step would make the slider unusable. It waits for the release, where the
+		//sticky selection is restored for real.
+		fillBondsListForCurrentModel(! stillDragging);
 		applyViewerModel(modelNumber);
 	}
 
@@ -1108,6 +1113,23 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private int nrModelsOfStructure = 1;
 	/** the 1-based model whose interactions the list is currently showing */
 	private int currentModelNumber = 1;
+	/**
+	 * The interaction the user last picked, held by its coordinate-free identity so it can
+	 * be looked for again in whatever model is shown next. Null when nothing is picked.
+	 * <p>
+	 * Deliberately kept across model changes even when the new model does not contain it:
+	 * models 1 and 3 may hold an interaction that model 2 does not, and stepping through
+	 * model 2 should not lose it.
+	 */
+	private String rememberedBondIdentity = null;
+	/**
+	 * Set while the links list is being refilled and its selection restored.
+	 * <p>
+	 * Not defensive: setListData alone fires a zero-selection event, so without this every
+	 * model change would look like the user deselecting and would erase the very thing this
+	 * is for.
+	 */
+	private boolean restoringBondSelection = false;
 
 	/**
 	 * Hands the list a new structure's interactions and starts it at the first model.
@@ -1119,21 +1141,52 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		this.allBondsOfStructure = bonds;
 		this.nrModelsOfStructure = Math.max(1, nrModels);
 		this.currentModelNumber = 1;
+		//a different structure means a different set of interactions; nothing to be sticky
+		//about. Only a model change preserves the memory.
+		this.rememberedBondIdentity = null;
 		configureModelSelector(this.nrModelsOfStructure);
-		fillBondsListForCurrentModel();
+		fillBondsListForCurrentModel(true);
 	}
 
-	/** Refills the list with the interactions of the model on show, and only those. */
-	private void fillBondsListForCurrentModel() {
+	/**
+	 * Refills the list with the interactions of the model on show, and only those, then
+	 * puts the selection back on the remembered interaction if this model has it.
+	 */
+	private void fillBondsListForCurrentModel(boolean driveViewer) {
 		List<BondListItem> ofThisModel = new ArrayList<BondListItem>();
+		int indexToSelect = -1;
 		for (BondListItem bond : allBondsOfStructure) {
 			if (bond.getModelNumber() == currentModelNumber) {
+				if (bond.getIdentity().equals(rememberedBondIdentity)) {
+					indexToSelect = ofThisModel.size();
+				}
 				ofThisModel.add(bond);
 			}
 		}
 		JList<BondListItem> linksList = getFoundLinksList();
-		linksList.setSelectedIndices(NO_SELECTION);
-		linksList.setListData(ofThisModel.toArray(NO_BOND_LIST_ITEMS));
+		restoringBondSelection = true;
+		try {
+			linksList.setListData(ofThisModel.toArray(NO_BOND_LIST_ITEMS));
+			if (indexToSelect >= 0) {
+				linksList.setSelectedIndex(indexToSelect);
+				linksList.ensureIndexIsVisible(indexToSelect);
+			} else {
+				//this model does not have it; show nothing picked but keep remembering
+				linksList.clearSelection();
+			}
+		} finally {
+			restoringBondSelection = false;
+		}
+		if (driveViewer && indexToSelect >= 0) {
+			//the listener was suppressed, so drive the viewer here instead
+			showSelectedBondInViewer(ofThisModel.get(indexToSelect));
+		}
+	}
+
+	/** Zooms to and emphasises one interaction. */
+	private void showSelectedBondInViewer(BondListItem bond) {
+		PdbId pdbId = getFoundStructuresWithInteractionsList().getSelectedValue();
+		executeJmolScript(ResultManager.generateLinkSelectedJMolScriptString(bond.getFullString(), pdbId));
 	}
 
 	private JList<BondListItem> getFoundLinksList() {
@@ -1142,15 +1195,22 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			foundLinksList.addListSelectionListener(new ListSelectionListener() {
 				public void valueChanged(ListSelectionEvent e) {
 					//Selecting an interaction from the list should focus on it +/- show electron density
-					if (e.getValueIsAdjusting()|| foundLinksList.getSelectedIndices().length != 1)
+					if (e.getValueIsAdjusting())
 						return;
-					final String linkFullString = foundLinksList.getModel().getElementAt(foundLinksList.getSelectedIndex()).getFullString();
-//					System.out.println(linkFullString);
-					//The structure the interaction belongs to is what the script needs to
-					//undo the emphasis put on the previously picked interaction.
-					PdbId pdbId = getFoundStructuresWithInteractionsList().getSelectedValue();
-					String linkSelectedJMolScriptString = ResultManager.generateLinkSelectedJMolScriptString(linkFullString, pdbId);
-					executeJmolScript(linkSelectedJMolScriptString);
+					if (restoringBondSelection) {
+						//our own refill, not a choice the user made
+						return;
+					}
+					if (foundLinksList.getSelectedIndices().length != 1) {
+						if (foundLinksList.getSelectedIndices().length == 0) {
+							//the user deselected, so stop following an interaction around
+							rememberedBondIdentity = null;
+						}
+						return;
+					}
+					BondListItem selected = foundLinksList.getModel().getElementAt(foundLinksList.getSelectedIndex());
+					rememberedBondIdentity = selected.getIdentity();
+					showSelectedBondInViewer(selected);
 
 					//TODO complete
 					// +/- ED Map showing
@@ -1414,6 +1474,9 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			final PdbIdListModel pdbIdListModel = (PdbIdListModel) foundStructuresWithInteractionsList.getModel();
 			if (scanner != null && clean) {
 				pdbIdListModel.clear();
+				//every result is being replaced, so the interactions list and the
+				//interaction the selection was following go with them
+				showBondsOfStructure(NO_BOND_LIST_ITEMS, 1);
 				//TODO clear the Jmolpanel too.
 				parser.initialize();
 			}
