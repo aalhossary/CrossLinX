@@ -21,6 +21,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
@@ -68,16 +69,37 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	
 	public static class BondListItem{
 		private String fullString = null;
+		private final int modelNumber;
+		private final String identity;
 
 		public BondListItem(String fullString) {
 			this.fullString = fullString;
+			this.modelNumber = ResultManager.modelOf(fullString);
+			//Coordinate-free and model-free, so the same interaction has the same identity
+			//in every model of an ensemble - which is exactly what NMR models do NOT share,
+			//their coordinates. This is what lets a selection stay on the same interaction
+			//while the user steps through models.
+			this.identity = ResultManager.removeAtomCoords(ResultManager.stripModelTag(fullString));
 		}
 
 		@Override
 		public String toString() {
-			return ResultManager.removeAtomCoords(fullString);
+			//The list only ever shows one model at a time, so repeating the model on every
+			//row would say nothing. For an untagged line this is character for character
+			//what it has always rendered.
+			return identity;
 		}
-		
+
+		/** the 1-based model this interaction was found in */
+		public int getModelNumber() {
+			return modelNumber;
+		}
+
+		/** identifies the same interaction across models; see the constructor */
+		public String getIdentity() {
+			return identity;
+		}
+
 		public String getFullString() {
 			return fullString;
 		}
@@ -852,7 +874,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					if (numOfSelectedItems > 1)
 						return;
 					if (numOfSelectedItems == 0) {
-						getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
+						showBondsOfStructure(NO_BOND_LIST_ITEMS, 1);
 						return;
 					}
 					PdbId pdbId = foundStructuresWithInteractionsList.getSelectedValue();
@@ -880,15 +902,14 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					if (bondsList == null) {
 						//no cache file for this structure - the results were loaded from a
 						//file written elsewhere, or the cache was cleaned out under us
-						getFoundLinksList().setListData(NO_BOND_LIST_ITEMS);
+						showBondsOfStructure(NO_BOND_LIST_ITEMS, structure.nrModels());
 						return;
 					}
 					BondListItem[] bondListItems = new BondListItem[bondsList.size()];
 					for (int i = 0; i < bondListItems.length; i++) {
 						bondListItems[i] = new BondListItem(bondsList.get(i));
 					}
-					getFoundLinksList().setSelectedIndices(NO_SELECTION);
-					getFoundLinksList().setListData(bondListItems);
+					showBondsOfStructure(bondListItems, structure.nrModels());
 				}
 
 
@@ -906,6 +927,39 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		} catch (URISyntaxException e1) {
 			e1.printStackTrace();
 		}
+	}
+
+	/** every interaction of the structure on show, across all of its models */
+	private BondListItem[] allBondsOfStructure = NO_BOND_LIST_ITEMS;
+	/** how many models that structure has; 1 for everything that is not an ensemble */
+	private int nrModelsOfStructure = 1;
+	/** the 1-based model whose interactions the list is currently showing */
+	private int currentModelNumber = 1;
+
+	/**
+	 * Hands the list a new structure's interactions and starts it at the first model.
+	 * @param nrModels how many models the structure has, which is not the same as how many
+	 *        of them hold interactions - a model with none is still a model the user may
+	 *        want to look at
+	 */
+	private void showBondsOfStructure(BondListItem[] bonds, int nrModels) {
+		this.allBondsOfStructure = bonds;
+		this.nrModelsOfStructure = Math.max(1, nrModels);
+		this.currentModelNumber = 1;
+		fillBondsListForCurrentModel();
+	}
+
+	/** Refills the list with the interactions of the model on show, and only those. */
+	private void fillBondsListForCurrentModel() {
+		List<BondListItem> ofThisModel = new ArrayList<BondListItem>();
+		for (BondListItem bond : allBondsOfStructure) {
+			if (bond.getModelNumber() == currentModelNumber) {
+				ofThisModel.add(bond);
+			}
+		}
+		JList<BondListItem> linksList = getFoundLinksList();
+		linksList.setSelectedIndices(NO_SELECTION);
+		linksList.setListData(ofThisModel.toArray(NO_BOND_LIST_ITEMS));
 	}
 
 	private JList<BondListItem> getFoundLinksList() {
