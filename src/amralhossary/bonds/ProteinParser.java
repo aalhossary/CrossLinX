@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -262,24 +263,28 @@ public class ProteinParser implements SettingListener{
 	//	String token=null;
 	FileParsingParameters parameters = new FileParsingParameters();
 
-	private long attemptedPDBFiles;
-	private long successfullyParsedStructures;
-	private long failedToParseStructure;
-	private long failedToParseAminoAcids;
-	private long emptyFiles;
-	private long chainsParsed;
-	private long chainsSkipped;
-	private long chainsNotFound;
-	private long foundAminoAcids;
-	private long foundHetGroups;
+	//These are incremented from every ExploreTask running in the fork/join
+	//pool, so a plain long++ (a read-modify-write) loses counts. LongAdder
+	//increments atomically and is built for exactly this write-heavy,
+	//read-at-the-end pattern.
+	private final LongAdder attemptedPDBFiles = new LongAdder();
+	private final LongAdder successfullyParsedStructures = new LongAdder();
+	private final LongAdder failedToParseStructure = new LongAdder();
+	private final LongAdder failedToParseAminoAcids = new LongAdder();
+	private final LongAdder emptyFiles = new LongAdder();
+	private final LongAdder chainsParsed = new LongAdder();
+	private final LongAdder chainsSkipped = new LongAdder();
+	private final LongAdder chainsNotFound = new LongAdder();
+	private final LongAdder foundAminoAcids = new LongAdder();
+	private final LongAdder foundHetGroups = new LongAdder();
 //	private long processedAtoms;
-	
-//	static long totalFoundHetGroupsOfInterest;
-	       long totalFoundStructuresWithInteractions;
 
-	private long isopeptideBonds;
-	private long NOSBonds;
-	private long NxSBonds;
+//	static long totalFoundHetGroupsOfInterest;
+	final  LongAdder totalFoundStructuresWithInteractions = new LongAdder();
+
+	private final LongAdder isopeptideBonds = new LongAdder();
+	private final LongAdder NOSBonds = new LongAdder();
+	private final LongAdder NxSBonds = new LongAdder();
 	
 //	private long missingAtoms;//TODO complete it
 
@@ -305,26 +310,26 @@ public class ProteinParser implements SettingListener{
 	void initialize() {
 		moreWork = true;
 		recalculateValues();
-		this.attemptedPDBFiles=0;
-		this.successfullyParsedStructures=0;
+		this.attemptedPDBFiles.reset();
+		this.successfullyParsedStructures.reset();
 
-		
-		this.failedToParseAminoAcids=0;
-		this.failedToParseStructure=0;
-		this.emptyFiles=0;
-		this.chainsParsed=0;
-		this.chainsSkipped=0;
-		this.chainsNotFound=0;
-		this.foundAminoAcids=0;
-		this.foundHetGroups=0;
+
+		this.failedToParseAminoAcids.reset();
+		this.failedToParseStructure.reset();
+		this.emptyFiles.reset();
+		this.chainsParsed.reset();
+		this.chainsSkipped.reset();
+		this.chainsNotFound.reset();
+		this.foundAminoAcids.reset();
+		this.foundHetGroups.reset();
 //		this.missingAtoms=0;
 
 //		totalFoundHetGroupsOfInterest = 0;
-		totalFoundStructuresWithInteractions = 0;
+		totalFoundStructuresWithInteractions.reset();
 
-		this.isopeptideBonds = 0;
-		this.NOSBonds = 0;
-		this.NxSBonds = 0;
+		this.isopeptideBonds.reset();
+		this.NOSBonds.reset();
+		this.NxSBonds.reset();
 		
 //		cubes.clear();
 	}
@@ -621,46 +626,46 @@ public class ProteinParser implements SettingListener{
 							String key = line.substring(indexOfSeparator+1);
 							switch (key) {
 							case ATTEMPTED_FILES:
-								attemptedPDBFiles += value;
+								attemptedPDBFiles.add(value);
 								break;
 							case SUCCESSFULLY_PARSED_STRUCTURE_FILES:
-								successfullyParsedStructures += value;
+								successfullyParsedStructures.add(value);
 								break;
 							case FAILS:
-								failedToParseStructure += value;
+								failedToParseStructure.add(value);
 								break;
 							case EMPTY_FILES:
-								 emptyFiles+= value;
+								 emptyFiles.add(value);
 								break;
 							case CHAINS_PARSED:
-								 chainsParsed+= value;
+								 chainsParsed.add(value);
 								break;
 							case CHAINS_SKIPPED:
-								 chainsSkipped+= value;
+								 chainsSkipped.add(value);
 								break;
 							case CHAINS_NOT_FOUND:
-								 chainsNotFound+= value;
+								 chainsNotFound.add(value);
 								break;
 							case AMINO_ACIDS_FOUND:
-								 foundAminoAcids+= value;
+								 foundAminoAcids.add(value);
 								break;
 							case HET_GROUPS_FOUND:
-								 foundHetGroups+= value;
+								 foundHetGroups.add(value);
 								break;
 							case AMINO_ACIDS_FAILED:
-								 failedToParseAminoAcids+= value;
+								 failedToParseAminoAcids.add(value);
 								break;
 							case TOTAL_STRUCTURES_WITH_INTERACTIONS:
-								 totalFoundStructuresWithInteractions+= value;
+								 totalFoundStructuresWithInteractions.add(value);
 								break;
 //							case ATOMS_NOT_FOUND:
 //								missingAtoms+= value;
 //								break;
 							case ISOPEPTIDE_BONDS:
-								 isopeptideBonds+= value;
+								 isopeptideBonds.add(value);
 								break;
 							case NOS_Bonds:
-								 NOSBonds+= value;
+								 NOSBonds.add(value);
 								break;
 							default:
 								//unknown , ignore
@@ -692,26 +697,26 @@ public class ProteinParser implements SettingListener{
 		milliSeconds %= 					(1000);  // after complete soconds
 		
 		writer.println(ProteinParser.START_OF_STATISTICS);
-		writer.println(this.attemptedPDBFiles+"\t"+ProteinParser.ATTEMPTED_FILES);
-		writer.println(this.successfullyParsedStructures+"\t" +ProteinParser.SUCCESSFULLY_PARSED_STRUCTURE_FILES);
-		writer.println(this.failedToParseStructure+"\t" +ProteinParser.FAILS);
-		writer.println(this.emptyFiles+"\t" +ProteinParser.EMPTY_FILES);
-		writer.println(this.chainsParsed+"\t" +ProteinParser.CHAINS_PARSED);
-		writer.println(this.chainsSkipped+"\t" +ProteinParser.CHAINS_SKIPPED);
-		writer.println(this.chainsNotFound+"\t" +ProteinParser.CHAINS_NOT_FOUND);
-		writer.println(this.foundAminoAcids+"\t" +ProteinParser.AMINO_ACIDS_FOUND);
-		writer.println(this.foundHetGroups+"\t" +ProteinParser.HET_GROUPS_FOUND);
+		writer.println(this.attemptedPDBFiles.sum()+"\t"+ProteinParser.ATTEMPTED_FILES);
+		writer.println(this.successfullyParsedStructures.sum()+"\t" +ProteinParser.SUCCESSFULLY_PARSED_STRUCTURE_FILES);
+		writer.println(this.failedToParseStructure.sum()+"\t" +ProteinParser.FAILS);
+		writer.println(this.emptyFiles.sum()+"\t" +ProteinParser.EMPTY_FILES);
+		writer.println(this.chainsParsed.sum()+"\t" +ProteinParser.CHAINS_PARSED);
+		writer.println(this.chainsSkipped.sum()+"\t" +ProteinParser.CHAINS_SKIPPED);
+		writer.println(this.chainsNotFound.sum()+"\t" +ProteinParser.CHAINS_NOT_FOUND);
+		writer.println(this.foundAminoAcids.sum()+"\t" +ProteinParser.AMINO_ACIDS_FOUND);
+		writer.println(this.foundHetGroups.sum()+"\t" +ProteinParser.HET_GROUPS_FOUND);
 //		writer.println(this.processedAtoms+"\t Atoms Processed");
 //		writer.println(this.missingAtoms+"\t" +ProteinParser.ATOMS_NOT_FOUND);
-		writer.println(this.failedToParseAminoAcids+"\t" +ProteinParser.AMINO_ACIDS_FAILED);
+		writer.println(this.failedToParseAminoAcids.sum()+"\t" +ProteinParser.AMINO_ACIDS_FAILED);
 		writer.println();
-		writer.println(totalFoundStructuresWithInteractions + "\t" +ProteinParser.TOTAL_STRUCTURES_WITH_INTERACTIONS);
+		writer.println(totalFoundStructuresWithInteractions.sum() + "\t" +ProteinParser.TOTAL_STRUCTURES_WITH_INTERACTIONS);
 
-		writer.println(isopeptideBonds + "\t" +ProteinParser.ISOPEPTIDE_BONDS);
-		writer.println(NOSBonds        + "\t" +ProteinParser.NOS_Bonds);
-		writer.println(NxSBonds        + "\t" +ProteinParser.NXS_Bonds);
+		writer.println(isopeptideBonds.sum() + "\t" +ProteinParser.ISOPEPTIDE_BONDS);
+		writer.println(NOSBonds.sum()        + "\t" +ProteinParser.NOS_Bonds);
+		writer.println(NxSBonds.sum()        + "\t" +ProteinParser.NXS_Bonds);
 		writer.println();
-		writer.println(getPercent(totalFoundStructuresWithInteractions, successfullyParsedStructures,2) + "%\t" +"structures with interactions");
+		writer.println(getPercent(totalFoundStructuresWithInteractions.sum(), successfullyParsedStructures.sum(),2) + "%\t" +"structures with interactions");
 		writer.println();
 		
 		writer.println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
@@ -740,7 +745,7 @@ public class ProteinParser implements SettingListener{
 				Map<ResidueNumber, Set<Bond>> foundInteractions = findInteractionsInCubes(cubes, logStringBuilder);
 				
 				if (foundInteractions.size() > 0){
-					totalFoundStructuresWithInteractions++;
+					totalFoundStructuresWithInteractions.increment();
 					// convert foundInteractions into listofDetailedConnectionsAsString (with coords)
 					Set<Bond> allBonds = new LinkedHashSet<Bond>();
 					Iterator<Set<Bond>> bondsIterator = foundInteractions.values().iterator();
@@ -776,7 +781,7 @@ public class ProteinParser implements SettingListener{
 	}
 
 	boolean parseChainsInStructure(String token, Hashtable<String, ArrayList<GroupOfInterest>> cubes, StringBuilder logStringBuilder) {
-		this.attemptedPDBFiles++;
+		this.attemptedPDBFiles.increment();
 		boolean structureParsedSuccessfully = true;
 		try {
 			
@@ -789,13 +794,13 @@ public class ProteinParser implements SettingListener{
 			if (gui != null) {
 				gui.structureLoaded(currentStructure);
 			}
-			this.successfullyParsedStructures++;
+			this.successfullyParsedStructures.increment();
 //			Hashtable<String, ArrayList<GroupOfInterest>> cubes = ProteinParser.cubes;
 			cubes.clear();
 			
 			List<Chain> chains = currentStructure.getChains(); //TODO I get all chains of the FIRST model. Consider getting all models and updating output identifiers
 			if (chains==null || chains.isEmpty()) {
-				this.emptyFiles++;
+				this.emptyFiles.increment();
 				logStringBuilder.append("Unexpected error: NO chains are found AT ALL in the file ").append(structureName).append('\n');
 				return false;
 			}
@@ -812,21 +817,21 @@ public class ProteinParser implements SettingListener{
 						chainFound=true;
 					}else {
 						logStringBuilder.append("skipped chain ").append(chain.getName()).append('\n');
-						this.chainsSkipped++;
+						this.chainsSkipped.increment();
 					}
 				}
 			}
 			if(! chainFound){
 				logStringBuilder.append("Unexpected error: chain ID ").append(extension).append(" NOT FOUND in file ").append(token).append('\n');
-				this.chainsNotFound++;
+				this.chainsNotFound.increment();
 			}
 		} catch (IOException e) {
 			logStringBuilder.append("NOT FOUND or Failed to parse").append('\n');
-			this.failedToParseStructure++;
+			this.failedToParseStructure.increment();
 			structureParsedSuccessfully=false;
 		} catch (StructureException e) {
 			logStringBuilder.append("Failed to parse").append('\n');
-			this.failedToParseStructure++;
+			this.failedToParseStructure.increment();
 			structureParsedSuccessfully=false;
 		}
 		return structureParsedSuccessfully;
@@ -1159,7 +1164,7 @@ public class ProteinParser implements SettingListener{
 			lastAACached = false;
 			int currentResidueNumber = group.getResidueNumber().getSeqNum();
 			if (group instanceof AminoAcid) {
-				this.foundAminoAcids++;
+				this.foundAminoAcids.increment();
 				currentAA = null;
 				//TODO refactor this if statement and the AminoAcidOfInterest 
 				// constructor to make it perform only one check inside the constructor
@@ -1220,7 +1225,7 @@ public class ProteinParser implements SettingListener{
 					currentAA = new AminoAcidOfInterest(group, cubes);
 					lastAACached = true;
 				}else {
-					this.foundHetGroups++;
+					this.foundHetGroups.increment();
 					HetatomImpl hetatomImpl = (HetatomImpl) group;
 					HetGroupOfInterest.newHetGroupOfInterest(hetatomImpl, cubes);
 				}
@@ -1238,7 +1243,7 @@ public class ProteinParser implements SettingListener{
 			last.putInCorrespondingCube("|"+GroupOfInterest.NAME___LST, cubes);
 		}
 
-		this.chainsParsed++;
+		this.chainsParsed.increment();
 	}
 
 
@@ -1303,7 +1308,7 @@ public class ProteinParser implements SettingListener{
 		manageGroupList(nTerminus,	"|"+GroupOfInterest.NAME___1ST,	allParsed, cubes, logStringBuilder);
 		manageGroupList(cTerminus,	"|"+GroupOfInterest.NAME___LST,	allParsed, cubes, logStringBuilder);
 
-		this.chainsParsed++;
+		this.chainsParsed.increment();
 	}
 
 	private void manageGroupList(Map<Group, Boolean> groups, String suffix,

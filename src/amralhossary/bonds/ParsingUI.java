@@ -58,6 +58,7 @@ import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
 import amralhossary.bonds.SettingsManager.SettingListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	
@@ -112,6 +113,8 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JButton startButton = null;
 	private JButton stopButton = null;
 	private JmolPanel jmolPanel = null;
+	/** Latest structure waiting to be shown; see {@link #structureLoaded(Structure)}. */
+	private final AtomicReference<Structure> pendingStructure = new AtomicReference<Structure>();
 	private JScrollPane jScrollPane = null;
 	private JScrollPane jScrollPane2 = null;
 	private JList<PdbId> foundStructuresWithInteractionsList = null;
@@ -653,13 +656,23 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	@Override
 	public void structureLoaded(final Structure structure) {
 		if (settingsManager.isShowWhileProcessing()) {
-			runOnEdt(new Runnable() {
-				public void run() {
-//					out.setEnabled(false);
-					getJmolPanel().setStructure(structure);
-//					out.setEnabled(true);
-				}
-			});
+			//Parsing runs in parallel on a fork/join pool and can produce
+			//structures far faster than Jmol can draw them, so queueing every
+			//one would grow the EDT queue without bound. Only the most recent
+			//structure is worth showing: park it and let the pending repaint
+			//pick up whatever is latest when it runs.
+			if (pendingStructure.getAndSet(structure) == null) {
+				runOnEdt(new Runnable() {
+					public void run() {
+						Structure latest = pendingStructure.getAndSet(null);
+						if (latest != null) {
+//							out.setEnabled(false);
+							getJmolPanel().setStructure(latest);
+//							out.setEnabled(true);
+						}
+					}
+				});
+			}
 		}
 	}
 
