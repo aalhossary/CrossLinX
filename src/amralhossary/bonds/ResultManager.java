@@ -11,6 +11,7 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
@@ -45,6 +46,18 @@ public class ResultManager {
 			 "color cpk;\n";
 
 	private static final String INTERACTION_SEPARATOR = " \t-> ";
+
+	/**
+	 * Spacefill radius given to every atom that takes part in an interaction, applied once
+	 * when the structure is loaded.
+	 */
+	private static final String INTERACTING_ATOM_SPACEFILL = "0.5";
+	/**
+	 * Spacefill radius of the two atoms of the interaction currently picked in the list.
+	 * Deliberately larger than {@link #INTERACTING_ATOM_SPACEFILL} so the pick stands out
+	 * from the other interacting atoms around it.
+	 */
+	private static final String SELECTED_ATOM_SPACEFILL = "0.9";
 	public static final String CACHE_RESULT_FOLDER = "temp/cashe";
 	public static final String START_OF_STRUCTURE_PREFIX = "in structure#";
 	public static final String FAILED_TO_PARSE_AMINOACID = "##Failed to Parse ";
@@ -126,22 +139,12 @@ public class ResultManager {
 		StringBuffer buffer = new StringBuffer();
 		buffer.append(GENERAL_SELECTION_SCRIPT);
 
-		Set<String> interactingAtoms= new HashSet<String>();
-		int separatorIndex;
 		List<String> bondsList = retreiveBondsList(pdbId);
 		if (bondsList == null) {
 			return null;
 		}
+		Set<String> interactingAtoms = collectInteractingAtoms(bondsList);
 
-		//find interacting residues / atoms without duplicity
-		for (String bondString : bondsList) {
-			separatorIndex = bondString.indexOf(INTERACTION_SEPARATOR);
-			String leftSide=bondString.substring(0, separatorIndex);
-			String rightSide=bondString.substring(separatorIndex+INTERACTION_SEPARATOR.length()); //,line.indexOf('('));
-			interactingAtoms.add(leftSide);
-			interactingAtoms.add(rightSide);
-		}
-		
 		//augment interacting residues / atoms
 		if (interactingAtoms.size()>0) {
 			buffer.append("SELECT ("
@@ -171,22 +174,11 @@ public class ResultManager {
 					+ "color bonds none;\n");
 
 			//Then make the interacting atoms spacefill and/or show ED map
-			buffer.append("SELECT (");
-			for (int i = 0; i < interactingAtomsArray.length; i++) {
-				String atomExpressionAndCoords = interactingAtomsArray[i];
-				int indexOfOpeningPracket = atomExpressionAndCoords.indexOf('{'); // atom coordinates
-				String atomExpression = atomExpressionAndCoords.substring(0, indexOfOpeningPracket);
-				
-				buffer.append(atomExpression);
-				if (i < interactingAtomsArray.length -1) {
-					buffer.append(" OR ");
-				}
-			}
-			buffer.append(");");//wanted Atoms
+			buffer.append("SELECT (").append(asAtomSelectionExpression(interactingAtoms)).append(");");//wanted Atoms
 			//make the whole residue sticks.
 			buffer.append(
 //					"spacefill ionic;"+
-					"spacefill 0.5;"
+					"spacefill ").append(INTERACTING_ATOM_SPACEFILL).append(";"
 					);//space fill
 			buffer.append("color bonds [255,255,0];\n");
 
@@ -194,24 +186,87 @@ public class ResultManager {
 //				int indexOfOpeningPracket = interactingAtom.indexOf('{'); // atom coordinates
 //				int indexOfClosingPracket = interactingAtom.indexOf('}'); // atom coordinates
 		}
+		//A structure is loaded with nothing picked yet, so drop any halo left over from
+		//the interaction picked in the previously shown structure. See
+		//generateLinkSelectedJMolScriptString, which is what turns halos back on.
+		buffer.append("set selectionHalos OFF;\n");
 		return buffer.toString();
 	}
-	
-	
-	public static String generateLinkSelectedJMolScriptString(String linkFullString) {
-		
+
+	/**
+	 * Collects, without duplicates, every atom taking part in an interaction, each still
+	 * carrying its coordinate block exactly as {@link #createInteractionString(Bond)} wrote it.
+	 * @param bondsList interaction lines, as stored in the cache file
+	 */
+	private static Set<String> collectInteractingAtoms(List<String> bondsList) {
+		Set<String> interactingAtoms = new HashSet<String>();
+		for (String bondString : bondsList) {
+			int separatorIndex = bondString.indexOf(INTERACTION_SEPARATOR);
+			interactingAtoms.add(bondString.substring(0, separatorIndex));
+			interactingAtoms.add(bondString.substring(separatorIndex+INTERACTION_SEPARATOR.length())); //,line.indexOf('('));
+		}
+		return interactingAtoms;
+	}
+
+	/**
+	 * Turns atom strings into one Jmol atom expression, dropping the coordinate block that
+	 * follows each atom: {@code [LYS]48:B.NZ%A OR [GLY]76:C.C}.
+	 * @param atomsWithCoords atoms as produced by {@link #collectInteractingAtoms(List)}
+	 */
+	private static String asAtomSelectionExpression(Collection<String> atomsWithCoords) {
+		StringBuilder expression = new StringBuilder();
+		for (String atomAndCoords : atomsWithCoords) {
+			if (expression.length() > 0) {
+				expression.append(" OR ");
+			}
+			expression.append(stripAtomCoords(atomAndCoords));
+		}
+		return expression.toString();
+	}
+
+	/** Drops the trailing <code>{x y z}</code> block from a single atom string. */
+	private static String stripAtomCoords(String atomAndCoords) {
+		int indexOfOpeningBracket = atomAndCoords.indexOf('{'); // atom coordinates
+		return atomAndCoords.substring(0, indexOfOpeningBracket).trim();
+	}
+
+	/**
+	 * The script run when the user picks one interaction out of the list: zoom out, zoom
+	 * back in on the two residues, then pick out the two interacting atoms themselves.
+	 * <p>
+	 * The emphasis has to undo the previous pick's, or every atom visited during a session
+	 * stays enlarged. Rather than remember what was picked last, this resets <i>all</i> of
+	 * the structure's interacting atoms to the size
+	 * {@link #generateAfterLoadingJMolScriptString(PdbId)} gave them and only then enlarges
+	 * the pair, which is right however the user reached this point. The halo needs no such
+	 * reset - it follows the current selection.
+	 *
+	 * @param linkFullString the interaction, as written in the results file
+	 * @param pdbId structure the interaction belongs to; used to find the atoms to reset.
+	 *              May be null, in which case the previous pick is left enlarged.
+	 */
+	public static String generateLinkSelectedJMolScriptString(String linkFullString, PdbId pdbId) {
+
 		int separatorIndex = linkFullString.indexOf(INTERACTION_SEPARATOR);
 		String leftSide = linkFullString.substring(0, separatorIndex);
 		String rightSide = linkFullString.substring(separatorIndex+INTERACTION_SEPARATOR.length()); //,line.indexOf('('));
-//		String atom1 = leftSide.substring(0, leftSide.indexOf('{'));
-//		String atom2 = rightSide.substring(0, rightSide.indexOf('{'));
+		String atom1 = stripAtomCoords(leftSide);
+		String atom2 = stripAtomCoords(rightSide);
 		String residue1 = leftSide.substring(0, leftSide.indexOf('.'));
 		String residue2 = rightSide.substring(0, rightSide.indexOf('.'));
-		
+
 		StringBuffer buffer = new StringBuffer();
 		buffer.append("zoomto 1.0 {visible} 0; delay 1.0;\n");
 		buffer.append("zoomto 0.5 { ").append(residue1).append(" or ").append(residue2).append(" };\n");
 		buffer.append("zoomto 0.5 { ").append(residue1).append(" or ").append(residue2).append(" } 0 *0.7;\n");
+
+		List<String> bondsList = (pdbId == null) ? null : retreiveBondsList(pdbId);
+		if (bondsList != null) {
+			buffer.append("SELECT (").append(asAtomSelectionExpression(collectInteractingAtoms(bondsList))).append(");");
+			buffer.append("spacefill ").append(INTERACTING_ATOM_SPACEFILL).append(";\n");
+		}
+		buffer.append("SELECT (").append(atom1).append(" OR ").append(atom2).append(");");
+		buffer.append("spacefill ").append(SELECTED_ATOM_SPACEFILL).append("; set selectionHalos ON;\n");
 		return buffer.toString();
 	}
 

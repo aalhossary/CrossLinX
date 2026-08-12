@@ -912,11 +912,14 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 						return;
 					final String linkFullString = foundLinksList.getModel().getElementAt(foundLinksList.getSelectedIndex()).getFullString();
 //					System.out.println(linkFullString);
-					String linkSelectedJMolScriptString = ResultManager.generateLinkSelectedJMolScriptString(linkFullString);
+					//The structure the interaction belongs to is what the script needs to
+					//undo the emphasis put on the previously picked interaction.
+					PdbId pdbId = getFoundStructuresWithInteractionsList().getSelectedValue();
+					String linkSelectedJMolScriptString = ResultManager.generateLinkSelectedJMolScriptString(linkFullString, pdbId);
 					executeJmolScript(linkSelectedJMolScriptString);
 
 					//TODO complete
-					// create and execute bonds focusing (+/- ED Map showing) scripts
+					// +/- ED Map showing
 //					ResultManager.decodeDrawSphereCommand(string);
 				}
 			});
