@@ -1,0 +1,110 @@
+--- a/src/org/jmol/viewer/ModelManager.java	2026-05-14 15:41:43.000000000 -0400
++++ b/src/org/jmol/viewer/ModelManager.java	2026-08-12 04:52:56.453814705 -0400
+@@ -43,12 +43,26 @@
+     this.vwr = vwr;
+   }
+ 
+-  void zap() {
++  /*
++   * Loading a model replaces state shared by the whole Viewer: vwr.ms, the
++   * ModelSet's bioModelset, and the Viewer's single BioResolver, whose loader
++   * reference each ModelLoader sets on entry and clears again on exit
++   * (ModelLoader lines 171 and 121). Two loads running at once on one Viewer
++   * therefore trample each other, and the failures surface far from the cause,
++   * for example "this.ml.group3Lists is null" in BioResolver.setGroupLists.
++   *
++   * These two methods are the only places a ModelLoader is constructed, so
++   * synchronizing them makes a load atomic per Viewer: a second thread waits
++   * rather than observing a half-built model set. Both are reentrant-safe;
++   * createModelSet calls zap. Single-threaded callers are unaffected, and
++   * synchronized is a no-op under SwingJS.
++   */
++  synchronized void zap() {
+     modelSetPathName = fileName = null;
+     new ModelLoader(vwr, vwr.getZapName(), null, null, null, null);
+   }
+-  
+-  void createModelSet(String fullPathName, String fileName,
++
++  synchronized void createModelSet(String fullPathName, String fileName,
+                           SB loadScript, Object atomSetCollection,
+                           BS bsNew, boolean isAppend) {
+     String modelSetName = null;
+--- a/src/org/jmol/viewer/Viewer.java	2026-05-14 15:41:43.000000000 -0400
++++ b/src/org/jmol/viewer/Viewer.java	2026-08-12 05:11:15.471320571 -0400
+@@ -3297,6 +3297,23 @@
+   public String openStringInlineParamsAppend(String strModel,
+                                              Map<String, Object> htParams,
+                                              boolean isAppend) {
++    /*
++     * A load is zap-then-create: this method calls zap() below and then
++     * createModelSetAndReturnError. Locking only the second half leaves the
++     * zap racing, which shows up as a ConcurrentModificationException in
++     * GlobalSettings.clear (a Hashtable iterated by one thread while another
++     * clears it) via StateManager.clear. Holding the ModelManager monitor
++     * across the pair makes the whole load atomic per Viewer. Reentrant for
++     * the nested zap and createModelSet calls.
++     */
++    synchronized (mm) {
++      return openStringInlineParamsAppend0(strModel, htParams, isAppend);
++    }
++  }
++
++  private String openStringInlineParamsAppend0(String strModel,
++                                             Map<String, Object> htParams,
++                                             boolean isAppend) {
+     // loadInline, openStringInline
+ 
+     htParams = setLoadParameters(htParams, isAppend);
+@@ -3371,6 +3388,31 @@
+   private String createModelSetAndReturnError(Object atomSetCollection,
+                                               boolean isAppend, SB loadScript,
+                                               Map<String, Object> htParams) {
++    /*
++     * Creating a model set replaces state belonging to the whole Viewer: ms,
++     * its bioModelset, the ShapeManager's shapes, and the Viewer's single
++     * BioResolver, whose loader reference each ModelLoader sets on entry and
++     * clears on exit. Two loads at once on one Viewer therefore trample each
++     * other, and the failures surface far from the cause - for example
++     * "this.ml.group3Lists is null" in BioResolver.setGroupLists, or
++     * "this.shapes[shapeID] is null" in ShapeManager.
++     *
++     * Holding the ModelManager monitor for the whole operation makes a load
++     * atomic per Viewer: a second thread waits instead of observing a
++     * half-built model set. ModelManager.createModelSet and zap synchronize on
++     * the same monitor, so the zap path is covered too, and the lock is
++     * reentrant for the nested call below. A single-threaded caller never
++     * contends, and synchronized is a no-op under SwingJS.
++     */
++    synchronized (mm) {
++      return createModelSetAndReturnError0(atomSetCollection, isAppend,
++          loadScript, htParams);
++    }
++  }
++
++  private String createModelSetAndReturnError0(Object atomSetCollection,
++                                              boolean isAppend, SB loadScript,
++                                              Map<String, Object> htParams) {
+ 
+     Logger.startTimer("creating model");
+ 
+@@ -3706,7 +3748,19 @@
+       modelkit.clearAtomConstraints();
+   }
+ 
++  /*
++   * Zapping clears Viewer-wide state (the ModelSet, the ShapeManager's shapes
++   * via initializeModel, and the global settings through StateManager.clear),
++   * so it takes the same per-Viewer monitor as loading. Callers already holding
++   * it - every load - re-enter harmlessly.
++   */
+   public void zap(boolean notify, boolean resetUndo, boolean zapModelKit) {
++    synchronized (mm) {
++      zap0(notify, resetUndo, zapModelKit);
++    }
++  }
++
++  private void zap0(boolean notify, boolean resetUndo, boolean zapModelKit) {
+     clearThreads();
+     if (mm.modelSet == null) {
+       mm.zap();
