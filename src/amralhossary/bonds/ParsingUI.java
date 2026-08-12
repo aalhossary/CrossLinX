@@ -58,6 +58,7 @@ import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
 import amralhossary.bonds.SettingsManager.SettingListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ParsingUI implements ProteinParsingGUI, SettingListener{
@@ -115,6 +116,8 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JmolPanel jmolPanel = null;
 	/** Latest structure waiting to be shown; see {@link #structureLoaded(Structure)}. */
 	private final AtomicReference<Structure> pendingStructure = new AtomicReference<Structure>();
+	/** Whether a list selection is already queued; see {@link #interactionsFoundInStructure(PdbId)}. */
+	private final AtomicBoolean selectionPending = new AtomicBoolean();
 	private JScrollPane jScrollPane = null;
 	private JScrollPane jScrollPane2 = null;
 	private JList<PdbId> foundStructuresWithInteractionsList = null;
@@ -679,18 +682,30 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 
 	@Override
 	public void interactionsFoundInStructure(final PdbId pdbId) {
+		//Every hit belongs in the list, so every one is appended.
 		runOnEdt(new Runnable() {
 			public void run() {
 				JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
 				PdbIdListModel model = (PdbIdListModel)foundStructuresWithInteractionsList.getModel();
 				model.addElement(pdbId);
-				if (settingsManager.isShowWhileProcessing()) {
-					//Appends run in submission order on the EDT, so the entry
-					//selected here is always the one just added.
-					foundStructuresWithInteractionsList.setSelectedIndex(model.getSize() - 1); // this will fire event
-				}
 			}
 		});
+		//Selecting an entry reloads it from disk and hands it to Jmol, all on
+		//the EDT. With the parsing running in parallel, doing that once per hit
+		//would swamp the EDT, so at most one selection is outstanding at a time
+		//and it lands on whichever entry is newest when it runs.
+		if (settingsManager.isShowWhileProcessing() && selectionPending.compareAndSet(false, true)) {
+			runOnEdt(new Runnable() {
+				public void run() {
+					selectionPending.set(false);
+					JList<PdbId> foundStructuresWithInteractionsList = getFoundStructuresWithInteractionsList();
+					PdbIdListModel model = (PdbIdListModel)foundStructuresWithInteractionsList.getModel();
+					if (model.getSize() > 0) {
+						foundStructuresWithInteractionsList.setSelectedIndex(model.getSize() - 1); // this will fire event
+					}
+				}
+			});
+		}
 	}
 
 	@Override
@@ -698,7 +713,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		if (settingsManager.isShowWhileProcessing()) {
 			runOnEdt(new Runnable() {
 				public void run() {
-					getJmolPanel().executeCmd(script);
+					executeJmolScript(script);
 				}
 			});
 		}
@@ -826,13 +841,17 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 						//mutual exclusion that matters here. The previous
 						//synchronized(this) locked the listener instance, an object
 						//no other thread ever locks, so it excluded nothing.
+						//Loading the structure and running its script must stay a
+						//single unit, hence the waiting form of the script call:
+						//otherwise the next selection can load a different structure
+						//before this script runs against it.
 //						out.setEnabled(false);
 						jmolPanel.setStructure(structure);
 //						out.setEnabled(true);
 
 						String buffer = ResultManager.generateAfterLoadingJMolScriptString(pdbId);  //TODO review
 //						System.out.println("String To Evaluate is: "+buffer);
-						jmolPanel.executeCmd(buffer);
+						executeJmolScript(buffer);
 					} catch (Exception e1) {
 						e1.printStackTrace();
 					}
@@ -875,7 +894,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					final String linkFullString = foundLinksList.getModel().getElementAt(foundLinksList.getSelectedIndex()).getFullString();
 //					System.out.println(linkFullString);
 					String linkSelectedJMolScriptString = ResultManager.generateLinkSelectedJMolScriptString(linkFullString);
-					jmolPanel.executeCmd(linkSelectedJMolScriptString);
+					executeJmolScript(linkSelectedJMolScriptString);
 
 					//TODO complete
 					// create and execute bonds focusing (+/- ED Map showing) scripts
@@ -959,7 +978,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	/**
 	 * Runs {@code task} on the Event Dispatch Thread. Swing components may only
 	 * be touched from that thread, and the parser calls back into this class
-	 * from its own worker thread. Runs inline when already on the EDT so that
+	 * from its own worker threads. Runs inline when already on the EDT so that
 	 * callers on the EDT keep their current synchronous behaviour.
 	 */
 	private static void runOnEdt(Runnable task) {
@@ -968,6 +987,25 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		} else {
 			SwingUtilities.invokeLater(task);
 		}
+	}
+
+	/**
+	 * Runs a Jmol script and waits for it to finish.
+	 * <p>
+	 * {@link JmolPanel#executeCmd(String)} calls {@code evalString}, which only
+	 * queues the script: Jmol runs it later on its own ScriptQueueThread. A
+	 * script generated for one structure could therefore execute after the next
+	 * structure had been loaded, and its atom indices no longer existed in the
+	 * model, which failed inside Jmol with errors such as
+	 * "ArrayIndexOutOfBoundsException: Index 3282 out of bounds for length 3282".
+	 * Running the script to completion keeps it bound to the structure it was
+	 * generated for.
+	 */
+	private void executeJmolScript(String script) {
+		if (script == null) {
+			return;
+		}
+		getJmolPanel().getViewer().scriptWait(script);
 	}
 	
 	
@@ -1130,7 +1168,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 //			String generalViewingScript = ResultManager.generateJMolScriptString(token, specificCollectionScriptString, foundInteractions);
 			String generalViewingScript = null;
 			out.setEnabled(false);
-			getJmolPanel().executeCmd(generalViewingScript);
+			executeJmolScript(generalViewingScript);
 			out.setEnabled(true);
 		}
 	}
