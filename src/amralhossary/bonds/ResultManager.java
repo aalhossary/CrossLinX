@@ -310,7 +310,7 @@ public static File prepareFilesList(boolean temp) {
 		return interactionOfInterestFound.toString();
 	}
 
-	public static HashSet<String> decodeInteractioString(String nextLine, Hashtable<String,HashSet<String>> interactions) {
+	public static HashSet<String> decodeInteractionString(String nextLine, Hashtable<String,HashSet<String>> interactions) {
 
 		//extract source
 		final int interactionSeparatorPosition = nextLine.indexOf(INTERACTION_SEPARATOR);
