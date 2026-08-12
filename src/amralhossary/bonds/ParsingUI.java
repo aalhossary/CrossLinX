@@ -3,6 +3,7 @@ package amralhossary.bonds;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Scanner;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.ButtonModel;
@@ -43,11 +45,16 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.JSlider;
+import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.TitledBorder;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.text.BadLocationException;
@@ -63,6 +70,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ParsingUI implements ProteinParsingGUI, SettingListener{
@@ -139,6 +147,19 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	private JButton startButton = null;
 	private JButton stopButton = null;
 	private JmolPanel jmolPanel = null;
+	private JPanel modelSelectorPanel = null;
+	private JPanel modelSpinnerRow = null;
+	private JSlider modelSlider = null;
+	private JSpinner modelSpinner = null;
+	private JLabel modelCountLabel = null;
+	/**
+	 * Set while the selector is being pointed at a new structure. Without it, giving the
+	 * slider a new range would look exactly like the user picking a model.
+	 */
+	private boolean adjustingModelSelector = false;
+	/** latest model asked for; see {@link #applyViewerModel(int)} */
+	private final AtomicInteger pendingFrame = new AtomicInteger(1);
+	private final AtomicBoolean framePending = new AtomicBoolean(false);
 	/**
 	 * Every call into the Jmol viewer is made from this one thread.
 	 * <p>
@@ -417,8 +438,10 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			label2.setText("Found links");
 			foundLinksPanel = new JPanel();
 			foundLinksPanel.setLayout(new BoxLayout(getFoundLinksPanel(), BoxLayout.Y_AXIS));
-			foundLinksPanel.setPreferredSize(new Dimension(100, -1));
+			//wide enough that the model row is legible without dragging the divider first
+			foundLinksPanel.setPreferredSize(new Dimension(150, -1));
 			foundLinksPanel.add(label2, null);
+			foundLinksPanel.add(getModelSelectorPanel(), null);
 			foundLinksPanel.add(getJScrollPane2(), null);
 		}
 		return foundLinksPanel;
@@ -929,6 +952,156 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		}
 	}
 
+	/**
+	 * Two stacked rows - "Model [spinner] of N" over a full-width slider - shown only for a
+	 * structure that actually has models to choose between.
+	 * <p>
+	 * Two rows rather than one because the links panel is narrow: a spinner, its "of N" and
+	 * a usable slider do not fit side by side.
+	 */
+	private JPanel getModelSelectorPanel() {
+		if (modelSelectorPanel == null) {
+			modelSelectorPanel = new JPanel();
+			modelSelectorPanel.setLayout(new BoxLayout(modelSelectorPanel, BoxLayout.Y_AXIS));
+			//JLabel aligns left and JPanel centre by default, and mixing the two in one
+			//Y_AXIS box visibly staggers the rows
+			modelSelectorPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+			modelSelectorPanel.add(getModelSpinnerRow());
+			modelSelectorPanel.add(getModelSlider());
+			//without a cap the box layout hands it the height the list wants
+			modelSelectorPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+					modelSelectorPanel.getPreferredSize().height));
+			modelSelectorPanel.setVisible(false);
+		}
+		return modelSelectorPanel;
+	}
+
+	private JPanel getModelSpinnerRow() {
+		if (modelSpinnerRow == null) {
+			modelSpinnerRow = new JPanel();
+			modelSpinnerRow.setLayout(new BoxLayout(modelSpinnerRow, BoxLayout.X_AXIS));
+			modelSpinnerRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+			modelSpinnerRow.add(new JLabel("Model "));
+			modelSpinnerRow.add(getModelSpinner());
+			modelSpinnerRow.add(getModelCountLabel());
+			modelSpinnerRow.add(Box.createHorizontalGlue());
+		}
+		return modelSpinnerRow;
+	}
+
+	/**
+	 * Types an exact model number. It mirrors into the slider and does nothing else - the
+	 * slider owns every side effect, so a change made through either control drives the
+	 * viewer exactly once, and the write back is stopped by the equality test.
+	 */
+	private JSpinner getModelSpinner() {
+		if (modelSpinner == null) {
+			modelSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 1, 1));
+			//plain digits: a 1000-model ensemble should read 1000, not 1,000
+			JSpinner.NumberEditor editor = new JSpinner.NumberEditor(modelSpinner, "0");
+			editor.getTextField().setColumns(3);
+			modelSpinner.setEditor(editor);
+			modelSpinner.setMaximumSize(modelSpinner.getPreferredSize());
+			modelSpinner.addChangeListener(new ChangeListener() {
+				public void stateChanged(ChangeEvent e) {
+					int value = ((Number) modelSpinner.getValue()).intValue();
+					if (getModelSlider().getValue() != value) {
+						getModelSlider().setValue(value);
+					}
+				}
+			});
+		}
+		return modelSpinner;
+	}
+
+	/** Scrubs through the models. Owns the side effects; see {@link #getModelSpinner()}. */
+	private JSlider getModelSlider() {
+		if (modelSlider == null) {
+			modelSlider = new JSlider(1, 1, 1);
+			modelSlider.setAlignmentX(Component.LEFT_ALIGNMENT);
+			modelSlider.addChangeListener(new ChangeListener() {
+				public void stateChanged(ChangeEvent e) {
+					int value = modelSlider.getValue();
+					if (((Number) getModelSpinner().getValue()).intValue() != value) {
+						getModelSpinner().setValue(Integer.valueOf(value));
+					}
+					if (adjustingModelSelector) {
+						//being reconfigured for a newly selected structure, which must not
+						//drive a viewer that is still loading it
+						return;
+					}
+					modelChanged(value, modelSlider.getValueIsAdjusting());
+				}
+			});
+		}
+		return modelSlider;
+	}
+
+	private JLabel getModelCountLabel() {
+		if (modelCountLabel == null) {
+			modelCountLabel = new JLabel(" of 1");
+		}
+		return modelCountLabel;
+	}
+
+	/**
+	 * Points the selector at a newly shown structure. Guarded throughout, so growing or
+	 * shrinking the range cannot be mistaken for the user choosing a model.
+	 */
+	private void configureModelSelector(int nrModels) {
+		adjustingModelSelector = true;
+		try {
+			SpinnerNumberModel spinnerModel = (SpinnerNumberModel) getModelSpinner().getModel();
+			spinnerModel.setMaximum(Integer.valueOf(nrModels));
+			getModelSpinner().setValue(Integer.valueOf(1));
+			getModelSlider().setMaximum(nrModels);
+			getModelSlider().setValue(1);
+			getModelCountLabel().setText(" of " + nrModels);
+			//nothing to choose between in a structure with a single model
+			getModelSelectorPanel().setVisible(nrModels > 1);
+			getFoundLinksPanel().revalidate();
+		} finally {
+			adjustingModelSelector = false;
+		}
+	}
+
+	/**
+	 * @param stillDragging true while the slider knob is still under the pointer. Refilling
+	 *        the list and changing the frame happen either way, because scrubbing is the
+	 *        point of a slider; anything slower waits for the release, which JSlider always
+	 *        delivers as a final event.
+	 */
+	private void modelChanged(int modelNumber, boolean stillDragging) {
+		currentModelNumber = modelNumber;
+		fillBondsListForCurrentModel();
+		applyViewerModel(modelNumber);
+	}
+
+	/**
+	 * Shows one model in the viewer.
+	 * <p>
+	 * Frame changes are coalesced latest-wins: dragging the slider across 38 models must
+	 * not leave 38 scripts queued behind the pointer, and only the model the user stopped
+	 * on matters.
+	 */
+	private void applyViewerModel(final int modelNumber) {
+		if (nrModelsOfStructure <= 1) {
+			//a single-model structure is displayed exactly as it always was
+			return;
+		}
+		pendingFrame.set(modelNumber);
+		if (framePending.compareAndSet(false, true)) {
+			runOnJmolThread(new Runnable() {
+				public void run() {
+					//clear before reading, so a change arriving in between queues a fresh
+					//task rather than being dropped
+					framePending.set(false);
+					getJmolPanel().getViewer().scriptWait("frame " + pendingFrame.get() + ";");
+				}
+			});
+		}
+	}
+
 	/** every interaction of the structure on show, across all of its models */
 	private BondListItem[] allBondsOfStructure = NO_BOND_LIST_ITEMS;
 	/** how many models that structure has; 1 for everything that is not an ensemble */
@@ -946,6 +1119,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		this.allBondsOfStructure = bonds;
 		this.nrModelsOfStructure = Math.max(1, nrModels);
 		this.currentModelNumber = 1;
+		configureModelSelector(this.nrModelsOfStructure);
 		fillBondsListForCurrentModel();
 	}
 
