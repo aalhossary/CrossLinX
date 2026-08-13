@@ -20,6 +20,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -744,7 +745,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 						Structure latest = pendingStructure.getAndSet(null);
 						if (latest != null) {
 //							out.setEnabled(false);
-							panel.setStructure(latest);
+							loadOnEdt(panel, latest);
 //							out.setEnabled(true);
 						}
 					}
@@ -1384,12 +1385,49 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		final JmolPanel panel = getJmolPanel();
 		runOnJmolThread(new Runnable() {
 			public void run() {
-				panel.setStructure(structure);
+				loadOnEdt(panel, structure);
 				if (afterLoadScript != null) {
 					panel.getViewer().scriptWait(afterLoadScript);
 				}
 			}
 		});
+	}
+
+	/**
+	 * Replaces the model set the viewer is showing, on the EDT.
+	 * <p>
+	 * Loading is a zap followed by a rebuild, and in between the shapes the renderer is
+	 * about to draw do not exist yet. The EDT is what paints this panel, so a load
+	 * running on any other thread can be caught half way through by a repaint:
+	 * <pre>NullPointerException: Cannot assign field "haveStrutPoints" because "sticks" is null
+	 *     at org.jmol.render.RepaintManager.render
+	 *     at org.biojava...JmolPanel.paint</pre>
+	 * Doing the load on the EDT rules that out, because one thread cannot be painting and
+	 * loading at the same time. Jmol's own thread-safety patch does not help here: it
+	 * serialises one loader against another, not a loader against the painter.
+	 * <p>
+	 * Only the load needs this. Scripts stay on the Jmol thread, which is what lets their
+	 * animations render, and they never replace the model set.
+	 * <p>
+	 * Called from the Jmol thread, which waits here for the load to finish, so tasks stay
+	 * in submission order and nothing can slip between a load and the script that styles it.
+	 */
+	private void loadOnEdt(final JmolPanel panel, final Structure structure) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			panel.setStructure(structure);
+			return;
+		}
+		try {
+			SwingUtilities.invokeAndWait(new Runnable() {
+				public void run() {
+					panel.setStructure(structure);
+				}
+			});
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (InvocationTargetException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	
