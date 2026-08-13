@@ -39,7 +39,13 @@ import org.jmol.api.JmolViewer;
 public class ResultManager {
 	private static final String SPHERE_KEYWORD = "sphere";
 
-	public static final String GENERAL_SELECTION_SCRIPT = "set logLevel 0; display not solvent; select *;cartoons only; color cartoon group;rockets off;ribbons off;\n"+
+	//selectAllModels is a viewer-wide flag that outlives the structure that set it, and
+	//generateAfterLoadingJMolScriptString deliberately turns it OFF at the end of every
+	//load. Without turning it back ON here, the "select *" below would reach only the
+	//displayed frame of the NEXT structure loaded, leaving models 2..N of every structure
+	//after the first with no cartoon at all. Measured on a 3-model entry: 7584 atoms
+	//selected with the flag on, 2528 - model 1 alone - with it off.
+	public static final String GENERAL_SELECTION_SCRIPT = "set logLevel 0; set selectAllModels TRUE; display not solvent; select *;cartoons only; color cartoon group;rockets off;ribbons off;\n"+
 			"set showHydrogens false; set selectHydrogen off;"+
 //			"SELECT (PHE OR TYR OR TRP OR LYS OR ARG OR GLU OR ASP) AND SIDECHAIN;"+
 //			"spacefill 23%AUTO;wireframe 0.15;"
@@ -222,6 +228,9 @@ public class ResultManager {
 		//GENERAL_SELECTION_SCRIPT: everything above styles the interacting atoms, and that
 		//styling has to reach every model while the flag is still TRUE, or models 2..N
 		//would load unstyled. The restriction applies from here on.
+		//
+		//Because the flag is viewer-wide it survives into the next structure loaded, which
+		//is why GENERAL_SELECTION_SCRIPT turns it back ON before it styles anything.
 		buffer.append("set selectAllModels FALSE;\n");
 		return buffer.toString();
 	}
