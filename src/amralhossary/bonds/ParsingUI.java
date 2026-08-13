@@ -1060,11 +1060,46 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			getModelSlider().setValue(1);
 			getModelCountLabel().setText(" of " + nrModels);
 			//nothing to choose between in a structure with a single model
-			getModelSelectorPanel().setVisible(nrModels > 1);
+			final boolean showSelector = nrModels > 1;
+			final boolean wasShowing = getModelSelectorPanel().isVisible();
+			getModelSelectorPanel().setVisible(showSelector);
 			getFoundLinksPanel().revalidate();
+			if (showSelector != wasShowing) {
+				giveLinksPanelRoomForSelector(showSelector);
+			}
 		} finally {
 			adjustingModelSelector = false;
 		}
+	}
+
+	/**
+	 * Moves the divider so the interactions list keeps the room it had before the model
+	 * selector appeared above it.
+	 * <p>
+	 * The share the links panel gets is enough for the list on its own, but the selector
+	 * costs it two rows - the spinner row and the slider - which come straight out of the
+	 * list. So the divider goes up by exactly the height the selector occupies when it
+	 * appears, and back down by the same amount when it goes away, leaving a single-model
+	 * structure looking precisely as it did before.
+	 *
+	 * @param appearing true when the selector has just been shown, false when hidden
+	 */
+	private void giveLinksPanelRoomForSelector(final boolean appearing) {
+		//queued: the selector has only just been made visible, so its height is not laid
+		//out yet, and the divider would move by zero.
+		runOnEdt(new Runnable() {
+			public void run() {
+				int selectorHeight = getModelSelectorPanel().getPreferredSize().height;
+				if (selectorHeight <= 0) {
+					return;
+				}
+				JSplitPane split = getFoundSplitPane();
+				int divider = split.getDividerLocation();
+				int moved = appearing ? divider - selectorHeight : divider + selectorHeight;
+				//never collapse the structures list above it
+				split.setDividerLocation(Math.max(moved, split.getMinimumDividerLocation()));
+			}
+		});
 	}
 
 	/**
