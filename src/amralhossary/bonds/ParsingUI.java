@@ -541,7 +541,8 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					+ "6ZX4;1FMA;3ALB;7CAP;6o83;6ELW;3MLI;5JQF;6ZWJ;6ZWH\n"
 					+ "7B0L;1M3Q;3CLM;6ZWF;7BBX;7BBW;1v54\n"
 					+ "1v55;7coh;2qpe;2yev;6e87;2b39;3p06;2PNL\n"
-					+ "4izk;2ATK;1AY1;5b0w;5O81;6jky;3OPU");
+					+ "4izk;2ATK;1AY1;5b0w;5O81;6jky;3OPU\n"
+					+ "2N2K; 2MJ8; 7N99; 2LRC; 2JU4; 2GLG; 2GLH; 2AFF; 1GAC");
 			fileListTextArea.setColumns(50);
 		}
 		return fileListTextArea;
