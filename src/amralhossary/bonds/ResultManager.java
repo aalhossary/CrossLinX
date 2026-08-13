@@ -78,14 +78,12 @@ public class ResultManager {
 	/**
 	 * Spacefill radius given to every atom that takes part in an interaction, applied once
 	 * when the structure is loaded.
+	 * <p>
+	 * The picked interaction is drawn at this same size: it is marked by its selection
+	 * halo, and enlarging it as well made it read as a pair of bigger atoms rather than as
+	 * the picked pair.
 	 */
 	private static final String INTERACTING_ATOM_SPACEFILL = "0.5";
-	/**
-	 * Spacefill radius of the two atoms of the interaction currently picked in the list.
-	 * Deliberately larger than {@link #INTERACTING_ATOM_SPACEFILL} so the pick stands out
-	 * from the other interacting atoms around it.
-	 */
-	private static final String SELECTED_ATOM_SPACEFILL = "0.9";
 	public static final String CACHE_RESULT_FOLDER = "temp/cashe";
 	public static final String START_OF_STRUCTURE_PREFIX = "in structure#";
 	public static final String FAILED_TO_PARSE_AMINOACID = "##Failed to Parse ";
@@ -277,16 +275,20 @@ public class ResultManager {
 	 * The script run when the user picks one interaction out of the list: zoom out, zoom
 	 * back in on the two residues, then pick out the two interacting atoms themselves.
 	 * <p>
-	 * The emphasis has to undo the previous pick's, or every atom visited during a session
-	 * stays enlarged. Rather than remember what was picked last, this resets <i>all</i> of
-	 * the structure's interacting atoms to the size
-	 * {@link #generateAfterLoadingJMolScriptString(PdbId)} gave them and only then enlarges
-	 * the pair, which is right however the user reached this point. The halo needs no such
-	 * reset - it follows the current selection.
+	 * The halo alone marks the picked pair. The atoms keep the size every interacting atom
+	 * has, because enlarging them as well made them read as bigger atoms rather than as the
+	 * picked ones - the halo is already unmistakable, and doubling up only obscured the
+	 * atoms underneath.
+	 * <p>
+	 * The size reset below is still needed: it puts back the size
+	 * {@link #generateAfterLoadingJMolScriptString(PdbId)} gave every interacting atom, so
+	 * results written by an older version - which did enlarge the picked pair - do not
+	 * leave atoms enlarged for the rest of the session. The halo needs no such reset; it
+	 * follows the current selection.
 	 *
 	 * @param linkFullString the interaction, as written in the results file
 	 * @param pdbId structure the interaction belongs to; used to find the atoms to reset.
-	 *              May be null, in which case the previous pick is left enlarged.
+	 *              May be null, in which case any leftover sizes are left as they are.
 	 */
 	public static String generateLinkSelectedJMolScriptString(String taggedLinkFullString, PdbId pdbId) {
 
@@ -310,7 +312,7 @@ public class ResultManager {
 			buffer.append("spacefill ").append(INTERACTING_ATOM_SPACEFILL).append(";\n");
 		}
 		buffer.append("SELECT (").append(atom1).append(" OR ").append(atom2).append(");");
-		buffer.append("spacefill ").append(SELECTED_ATOM_SPACEFILL).append("; set selectionHalos ON;\n");
+		buffer.append("set selectionHalos ON;\n");
 		return buffer.toString();
 	}
 
