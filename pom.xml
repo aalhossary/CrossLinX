@@ -3,7 +3,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>corsslinx</artifactId>
-	<version>0.7.1</version>
+	<version>0.8.0</version>
 	<properties>
 		<biojava.version>7.2.6</biojava.version>
 		<!-- Jmol 16.4.1 plus our thread-safety patch; see jmol-patch/README.md -->

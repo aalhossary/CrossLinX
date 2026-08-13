@@ -63,9 +63,15 @@ tar xzf Jmol-16.4.1-full.tar.gz && cd jmol-16.4.1
 patch -p1 < ../jmol-patch/jmol-thread-safety.patch
 
 # 3. compile just the two patched files against the released jar.
+#    --release 8 is REQUIRED and is not the default. Every other class in the
+#    official jar is Java 8 (class file major version 52); compiling with
+#    whatever JDK is to hand leaves a handful of much newer class files inside
+#    an otherwise Java 8 jar. Viewer is the most central class in Jmol, so the
+#    jar then fails to load on any JVM older than the one that built it - while
+#    CrossLinX itself targets Java 11. Step 5 checks for exactly this.
 #    -sourcepath is required: javajs.J2SIgnoreImport ships in source only.
 mkdir /tmp/patched
-javac -implicit:none -cp Jmol.jar -sourcepath src -d /tmp/patched \
+javac --release 8 -implicit:none -cp Jmol.jar -sourcepath src -d /tmp/patched \
     src/org/jmol/viewer/Viewer.java src/org/jmol/viewer/ModelManager.java
 
 # 4. graft the classes onto a copy of the official jar
@@ -78,6 +84,12 @@ cp Jmol.jar jmol-16.4.1-threadsafe-1.jar
 # 5. verify: no failures multi-threaded, and none single-threaded either
 javac -cp jmol-16.4.1-threadsafe-1.jar ../jmol-patch/JmolThreadCrash.java
 java -cp jmol-16.4.1-threadsafe-1.jar:. JmolThreadCrash
+
+#    and that nothing newer than Java 8 crept in. This must print 52 as the
+#    highest version; anything above it will not load on an older JVM.
+mkdir /tmp/vcheck && (cd /tmp/vcheck && unzip -oq $OLDPWD/jmol-16.4.1-threadsafe-1.jar '*.class' \
+  && find . -name '*.class' -exec od -An -tu1 -j6 -N2 {} \; \
+     | awk '{print $1*256 + $2}' | sort -n | uniq -c)
 
 # 6. install into the project repository
 mvn install:install-file -Dfile=jmol-16.4.1-threadsafe-1.jar \
