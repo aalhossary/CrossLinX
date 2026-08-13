@@ -1204,12 +1204,31 @@ public class ProteinParser implements SettingListener{
 				if (distanceSquared <= cutoff2) {
 					confirmed = true;
 					interactions.add(new BondImpl(atom1, atom2, 1, false));
+					countBondByType(operation);
 					outputTsv(atom1, atom2, Math.sqrt(distanceSquared), operation, subOperation, modelNumber, simpleDateFormat);
 					break outer;
 				}
 			}
 		}
 		return confirmed;
+	}
+
+	/**
+	 * Counts a confirmed bond under its type, for the summary block.
+	 * <p>
+	 * Only the three types the summary reports are counted; the remaining operations
+	 * (thioether, ether, ester, ...) reach the TSV but have no counter of their own.
+	 * Called from the one place a bond is confirmed, so the totals cannot drift from
+	 * the rows written to the TSV.
+	 */
+	private void countBondByType(String operation) {
+		if (ISOPEPTIDE.equals(operation)) {
+			this.isopeptideBonds.increment();
+		} else if (NOS_BOND.equals(operation)) {
+			this.NOSBonds.increment();
+		} else if (NXS_BOND.equals(operation)) {
+			this.NxSBonds.increment();
+		}
 	}
 
 	private boolean alreadyReported(Atom atom1, Atom atom2, Set<Bond> interactions) {
@@ -1344,7 +1363,11 @@ public class ProteinParser implements SettingListener{
 			final String groupPdbName = group.getPDBName();
 			
 			if (TempStructureTools.isAminoAcid(groupPdbName)) { //handles both L and D AminoAcids, as well as CSO
-				if(AminoAcidOfInterest.aminoAcidsOfSpecialInterest.contains(groupPdbName) || 
+				//Counted per residue rather than per GroupOfInterest: a residue with altLocs
+				//becomes several GroupOfInterest objects but is still one amino acid found,
+				//and "Amino Acids Found" sits beside "Chains parsed", which counts the same way.
+				this.foundAminoAcids.increment();
+				if(AminoAcidOfInterest.aminoAcidsOfSpecialInterest.contains(groupPdbName) ||
 				   AminoAcidOfInterest.aminoAcidsOfSpecialInterest.contains(TempStructureTools.getLChiralImage(groupPdbName))) {
 					aminoacids.put(group, true);
 				}
@@ -1365,6 +1388,11 @@ public class ProteinParser implements SettingListener{
 				}
 
 				if(group instanceof HetatomImpl){ //Ligand
+					//Water is excluded deliberately: newHetGroupOfInterest discards it, so
+					//counting it here would report het groups the search never considered.
+					if (! "HOH".equalsIgnoreCase(groupPdbName)) {
+						this.foundHetGroups.increment();
+					}
 					ligands.put(group, false);
 				} else { //nucleotide and others
 					//Don know yet
@@ -1424,10 +1452,17 @@ public class ProteinParser implements SettingListener{
 	private GroupOfInterest createGroupOfInterest(Group group, Boolean aminoAcid, Hashtable<String, ArrayList<GroupOfInterest>> cubes) {
 		GroupOfInterest groupOfInterest;
 		if (aminoAcid) {
-			if(group instanceof AminoAcid) {
-				groupOfInterest = AminoAcidOfInterest.newAcidOfInterest((AminoAcid)group, cubes);
-			} else {
-				groupOfInterest = new AminoAcidOfInterest(group, cubes);						
+			//The exception is counted and then rethrown exactly as before, so this records
+			//the failure without changing what happens to the structure being parsed.
+			try {
+				if(group instanceof AminoAcid) {
+					groupOfInterest = AminoAcidOfInterest.newAcidOfInterest((AminoAcid)group, cubes);
+				} else {
+					groupOfInterest = new AminoAcidOfInterest(group, cubes);
+				}
+			} catch (IllegalArgumentException e) {
+				this.failedToParseAminoAcids.increment();
+				throw e;
 			}
 		} else {
 			groupOfInterest = HetGroupOfInterest.newHetGroupOfInterest(group, cubes);
