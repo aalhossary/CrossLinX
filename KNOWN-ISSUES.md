@@ -61,6 +61,37 @@ Converting one needs a Fourier transform, which BioJava does not implement.
 enable the source when the conversion is available. CCP4's `cif2mtz` followed by `fft` is the
 alternative. Until then the other sources cover every entry that has a grid at all.
 
+## A whole-cell map need not cover the cross-links
+
+Measured on real entries, contouring at the 5 Å clip radius around the interacting atoms:
+
+| entry | source | result |
+|---|---|---|
+| 1M3Q | RCSB volume server | 306 vertices |
+| 1CBS (around its ligand) | RCSB volume server | 4011 vertices |
+| 2ATK | RCSB volume server | nothing — not covered |
+| 3ALB | RCSB volume server, and PDBe CCP4 | nothing — not covered |
+
+The cause is coverage, not contouring. A map covers one box; the deposited coordinates need
+not lie inside it. All four of 3ALB's LYS48–GLY76 cross-links have a negative z, and the map
+box runs from the origin to `{58, 76, 134}`, so there is simply no density at those atoms to
+draw. Enlarging the clip radius to 20 Å eventually reaches *into* the box and draws something,
+but that something is not the density at the cross-link.
+
+This matters more for CrossLinX than for a general viewer: a cross-link is often at a crystal
+contact, which is exactly where an entry's coordinates run outside the cell box.
+
+The application copes rather than fixes: when a map loads but contours to nothing, the
+structure's tooltip says the map does not cover those atoms, instead of leaving the user with
+"available" and an empty screen.
+
+**Worth doing, upstream:** BioJava asks the Mol* volume server for
+`/volume-server/x-ray/<id>/cell`, which is the whole cell. The same server also serves
+`/box/<a,b,c>/<x,y,z>`, an arbitrary region. Asking for a box around the atoms of interest
+would both fix the coverage and be far smaller than a cell — 3ALB's cell response is 5.3 MB.
+Failing that, the density is only a lattice translation away, so wrapping the map periodically
+(or shifting the atoms into the cell before contouring) would also work.
+
 ## Smaller things
 
 - `ResultManager.generateFileLoadJMolScript` builds a path that omits the

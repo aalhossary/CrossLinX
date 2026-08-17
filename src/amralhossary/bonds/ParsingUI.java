@@ -66,11 +66,12 @@ import javax.swing.text.BadLocationException;
 import org.biojava.nbio.structure.PdbId;
 import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
+import org.biojava.nbio.structure.io.LocalPDBDirectory.FetchBehavior;
 import org.biojava.nbio.structure.io.density.DensityMapCache;
 import org.biojava.nbio.structure.io.density.DensityMapKind;
 import org.biojava.nbio.structure.io.density.DensityMapRequest;
 import org.biojava.nbio.structure.io.density.DensityMapResult;
-import org.biojava.nbio.structure.io.density.DensityMapSource;
+
 import org.biojava.nbio.structure.io.density.NoDensityMapException;
 
 import amralhossary.bonds.SettingsManager.SettingListener;
@@ -1476,9 +1477,8 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	 * structure has no density when it may have plenty.
 	 */
 	private void fetchAndDrawDensity(PdbId pdbId, DensityMapKind kind, String selection, int generation) {
-		DensityMapCache cache = DensityService.newCache(settingsManager);
 		try {
-			DensityMapResult map = findCachedDensity(cache, pdbId, kind);
+			DensityMapResult map = findCachedDensity(pdbId, kind);
 			if (map == null) {
 				if (! settingsManager.isAutoFetchElectronDensity()) {
 					setDensityState(pdbId, DensityService.DensityState.NOT_FETCHED,
@@ -1486,7 +1486,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					return;
 				}
 				setDensityState(pdbId, DensityService.DensityState.FETCHING, "Downloading...");
-				map = cache.getDensityMap(DensityMapRequest.builder(pdbId)
+				map = DensityService.newCache(settingsManager).getDensityMap(DensityMapRequest.builder(pdbId)
 						.kind(kind)
 						//wwPDB serves structure factors, which need a Fourier transform
 						//before anything can be drawn from them; asking for renderable
@@ -1508,19 +1508,33 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		}
 	}
 
-	/** @return the cached map for any source in the chain, or null if none is cached */
-	private DensityMapResult findCachedDensity(DensityMapCache cache, PdbId pdbId, DensityMapKind kind) {
-		if (kind == DensityMapKind.AUTO) {
-			//AUTO names no particular file, so there is nothing to probe for by name.
+	/**
+	 * Looks for an already-downloaded map, without touching the network.
+	 * <p>
+	 * This asks BioJava to resolve it, rather than looking for a file by name. Naming a
+	 * cached map is not as simple as it looks: a density server answers with both the 2Fo-Fc
+	 * and the Fo-Fc block in one file, so it is cached once under a shared token rather than
+	 * under either kind, and the file also carries the detail level it was sampled at
+	 * ({@code 1m3q_both_rcsbvs_d3.bcif}). A probe written here would have to know all of
+	 * that and would fall behind the moment upstream changed it - it already missed every
+	 * volume-server map on the first attempt.
+	 *
+	 * @return the cached map, or null if nothing local answers
+	 */
+	private DensityMapResult findCachedDensity(PdbId pdbId, DensityMapKind kind) {
+		DensityMapCache local = DensityService.newCache(settingsManager);
+		local.setFetchBehavior(FetchBehavior.LOCAL_ONLY);
+		try {
+			return local.getDensityMap(DensityMapRequest.builder(pdbId)
+					.kind(kind)
+					.fetchBehavior(FetchBehavior.LOCAL_ONLY)
+					.allowNonRenderableFormats(false)
+					.build());
+		} catch (IOException e) {
+			//Nothing cached - including NoDensityMapException, which here only means "not
+			//on this disk", since no source was allowed to be asked.
 			return null;
 		}
-		for (DensityMapSource source : cache.getSourceChain(kind)) {
-			DensityMapResult cached = cache.getCached(pdbId, kind, source);
-			if (cached != null && cached.isRenderable()) {
-				return cached;
-			}
-		}
-		return null;
 	}
 
 	/**
@@ -1548,6 +1562,63 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					getJmolPanel().loadDensityMap(map.getFile(), map.getKind(),
 							settingsManager.getDensityContourSigma(), true, selection, radius);
 				}
+			}
+		});
+		//Contouring is asynchronous: loadDensityMap ends in evalString, which hands the
+		//script to Jmol's own queue and returns at once, so the surface does not exist yet.
+		//The check therefore waits, on this thread rather than the Jmol one, which must stay
+		//free to build the very surface being waited for.
+		densityThread.execute(new Runnable() {
+			public void run() {
+				try {
+					Thread.sleep(CONTOURING_GRACE_MILLIS);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					return;
+				}
+				if (generation != densityGeneration.get()) {
+					return;
+				}
+				runOnJmolThread(new Runnable() {
+					public void run() {
+						warnIfNothingWasDrawn(map);
+					}
+				});
+			}
+		});
+	}
+
+	/**
+	 * How long to give Jmol to contour before concluding that nothing was drawn. Generous:
+	 * the cost of being wrong is a misleading tooltip, and a large map takes a moment.
+	 */
+	private static final long CONTOURING_GRACE_MILLIS = 4000;
+
+	/**
+	 * Says so when a map loads but contours to nothing around the interacting atoms.
+	 * <p>
+	 * A full CCP4 map covers one cell box, and an entry's coordinates need not lie inside it:
+	 * all four of 3ALB's cross-links have a negative z, so the PDBe map draws nothing at them
+	 * however large the clip radius. Without this the user is told the map is available and
+	 * then shown an empty screen, with no way to tell that apart from a bug. The volume
+	 * servers serve a box around the entry instead, and do not have the problem.
+	 */
+	private void warnIfNothingWasDrawn(DensityMapResult map) {
+		String shapes = String.valueOf(getJmolPanel().getViewer()
+				.getProperty("String", "shapeInfo", null));
+		if (shapes.contains(JmolPanel.ISOSURFACE_ID_2FOFC)
+				|| shapes.contains(JmolPanel.ISOSURFACE_ID_FOFC)
+				|| shapes.contains(JmolPanel.ISOSURFACE_ID_EM)) {
+			return;
+		}
+		String detail = "The " + map.getSource() + " map does not cover these atoms - it is a "
+				+ "whole-cell map and this entry's coordinates fall outside its box. Try another "
+				+ "source, or a larger clip radius.";
+		densityDetails.put(map.getPdbId(), detail);
+		System.out.println(map.getPdbId().getId() + ": " + detail);
+		runOnEdt(new Runnable() {
+			public void run() {
+				getFoundStructuresWithInteractionsList().repaint();
 			}
 		});
 	}
