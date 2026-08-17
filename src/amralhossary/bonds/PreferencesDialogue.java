@@ -53,6 +53,10 @@ public class PreferencesDialogue extends JDialog {
 	SettingsManager settingsManager = SettingsManager.getSettingsManager();
 	private JCheckBox domainEnabledCheckBox;
 	private JCheckBox showOnlySelectedModelCheckBox;
+	private JCheckBox showElectronDensityCheckBox;
+	private JCheckBox autoFetchDensityCheckBox;
+	private JButton densityOptionsButton;
+	private JButton restoreDefaultsButton;
 	private final ButtonGroup fileFormatsButtonGroup = new ButtonGroup();
 	
 	
@@ -73,16 +77,18 @@ public class PreferencesDialogue extends JDialog {
 	 * Create the dialog.
 	 */
 	public PreferencesDialogue() {
-		setBounds(100, 100, 450, 350);
+		setBounds(100, 100, 450, 460);
 		getContentPane().setLayout(new BorderLayout());
 		contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 		getContentPane().add(contentPanel, BorderLayout.CENTER);
 		GridBagLayout gbl_contentPanel = new GridBagLayout();
 		gbl_contentPanel.columnWidths = new int[]{304, 97, 0};
-		//row 6 stays the tall one: the file formats panel spans rows 4-6 and needs the room
-		gbl_contentPanel.rowHeights = new int[]{14, 23, 14, 23, 23, 23, 72, 23, 0};
+		//row 6 stays the tall one: the file formats panel spans rows 4-6 and needs the room.
+		//Rows 8-10 are the density controls, appended after the existing rows so that span
+		//is left undisturbed.
+		gbl_contentPanel.rowHeights = new int[]{14, 23, 14, 23, 23, 23, 72, 23, 23, 23, 23, 0};
 		gbl_contentPanel.columnWeights = new double[]{0.0, 0.0, Double.MIN_VALUE};
-		gbl_contentPanel.rowWeights = new double[]{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Double.MIN_VALUE};
+		gbl_contentPanel.rowWeights = new double[]{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Double.MIN_VALUE};
 		contentPanel.setLayout(gbl_contentPanel);
 		GridBagConstraints gbc_lblNewLabel = new GridBagConstraints();
 		gbc_lblNewLabel.anchor = GridBagConstraints.NORTHWEST;
@@ -175,13 +181,32 @@ public class PreferencesDialogue extends JDialog {
 		gbc_showOnlySelectedModelCheckBox.gridx = 0;
 		gbc_showOnlySelectedModelCheckBox.gridy = 7;
 		contentPanel.add(getShowOnlySelectedModelCheckBox(), gbc_showOnlySelectedModelCheckBox);
+		GridBagConstraints gbc_showElectronDensityCheckBox = new GridBagConstraints();
+		gbc_showElectronDensityCheckBox.anchor = GridBagConstraints.NORTHWEST;
+		gbc_showElectronDensityCheckBox.insets = new Insets(0, 0, 0, 5);
+		gbc_showElectronDensityCheckBox.gridx = 0;
+		gbc_showElectronDensityCheckBox.gridy = 8;
+		contentPanel.add(getShowElectronDensityCheckBox(), gbc_showElectronDensityCheckBox);
+		GridBagConstraints gbc_autoFetchDensityCheckBox = new GridBagConstraints();
+		gbc_autoFetchDensityCheckBox.anchor = GridBagConstraints.NORTHWEST;
+		gbc_autoFetchDensityCheckBox.insets = new Insets(0, 0, 0, 5);
+		gbc_autoFetchDensityCheckBox.gridx = 0;
+		gbc_autoFetchDensityCheckBox.gridy = 9;
+		contentPanel.add(getAutoFetchDensityCheckBox(), gbc_autoFetchDensityCheckBox);
+		GridBagConstraints gbc_densityOptionsButton = new GridBagConstraints();
+		gbc_densityOptionsButton.anchor = GridBagConstraints.NORTHWEST;
+		gbc_densityOptionsButton.insets = new Insets(0, 0, 0, 5);
+		gbc_densityOptionsButton.gridx = 0;
+		gbc_densityOptionsButton.gridy = 10;
+		contentPanel.add(getDensityOptionsButton(), gbc_densityOptionsButton);
 		{
 			JPanel buttonPane = new JPanel();
 			buttonPane.setLayout(new FlowLayout(FlowLayout.RIGHT));
 			getContentPane().add(buttonPane, BorderLayout.SOUTH);
+			buttonPane.add(getRestoreDefaultsButton());
 			buttonPane.add(getBtnOkButton());
 			buttonPane.add(getBtnCancelButton());
-			
+
 		}
 		Enumeration<AbstractButton> fileFormatAbstractButtons = fileFormatsButtonGroup.getElements();
 		while (fileFormatAbstractButtons.hasMoreElements()) {
@@ -218,6 +243,8 @@ public class PreferencesDialogue extends JDialog {
 						settingsManager.setShowWhileProcessing(showWhileProcessingCheckbox.isSelected());
 						settingsManager.setDomainEnabled(domainEnabledCheckBox.isSelected());
 						settingsManager.setShowOnlySelectedModel(showOnlySelectedModelCheckBox.isSelected());
+						settingsManager.setShowElectronDensity(showElectronDensityCheckBox.isSelected());
+						settingsManager.setAutoFetchElectronDensity(autoFetchDensityCheckBox.isSelected());
 						settingsManager.saveSettings(false);
 						dispose();
 					} catch (IOException e1) {
@@ -353,5 +380,69 @@ public class PreferencesDialogue extends JDialog {
 			domainEnabledCheckBox.setName("domainEnabledCheckBox");
 		}
 		return domainEnabledCheckBox;
+	}
+
+	private JCheckBox getShowElectronDensityCheckBox() {
+		if (showElectronDensityCheckBox == null) {
+			showElectronDensityCheckBox = new JCheckBox("Show electron density");
+			showElectronDensityCheckBox.setToolTipText("Draw the density map of the structure on "
+					+ "screen, around its interacting atoms. On its own this only draws maps "
+					+ "already downloaded.");
+			showElectronDensityCheckBox.setSelected(settingsManager.isShowElectronDensity());
+			showElectronDensityCheckBox.setName("showElectronDensityCheckBox");
+		}
+		return showElectronDensityCheckBox;
+	}
+
+	private JCheckBox getAutoFetchDensityCheckBox() {
+		if (autoFetchDensityCheckBox == null) {
+			autoFetchDensityCheckBox = new JCheckBox("Download density maps when needed");
+			autoFetchDensityCheckBox.setToolTipText("Fetch a map that is not already cached. "
+					+ "Maps are much larger than coordinate files, so this is off until asked for.");
+			autoFetchDensityCheckBox.setSelected(settingsManager.isAutoFetchElectronDensity());
+			autoFetchDensityCheckBox.setName("autoFetchDensityCheckBox");
+		}
+		return autoFetchDensityCheckBox;
+	}
+
+	private JButton getDensityOptionsButton() {
+		if (densityOptionsButton == null) {
+			densityOptionsButton = new JButton("Electron density…");
+			densityOptionsButton.setName("densityOptionsButton");
+			densityOptionsButton.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent e) {
+					DensityOptionsDialogue dialogue = new DensityOptionsDialogue(PreferencesDialogue.this);
+					dialogue.setModal(true);
+					dialogue.setLocationRelativeTo(PreferencesDialogue.this);
+					dialogue.setVisible(true);
+				}
+			});
+		}
+		return densityOptionsButton;
+	}
+
+	/**
+	 * Puts every control back to the shipped default.
+	 * <p>
+	 * Only the controls: nothing is written until OK, so Cancel still abandons the lot and
+	 * a mis-click costs nothing.
+	 */
+	private JButton getRestoreDefaultsButton() {
+		if (restoreDefaultsButton == null) {
+			restoreDefaultsButton = new JButton("Restore defaults");
+			restoreDefaultsButton.setName("restoreDefaultsButton");
+			restoreDefaultsButton.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent e) {
+					restoreDefaults();
+				}
+			});
+		}
+		return restoreDefaultsButton;
+	}
+
+	/** Package-private so a test can drive it without synthesising a click. */
+	void restoreDefaults() {
+		getShowElectronDensityCheckBox().setSelected(SettingsManager.DEFAULT_SHOW_ELECTRON_DENSITY);
+		getAutoFetchDensityCheckBox().setSelected(SettingsManager.DEFAULT_AUTOFETCH_ELECTRON_DENSITY);
 	}
 }
