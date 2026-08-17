@@ -53,6 +53,10 @@ import org.biojava.nbio.structure.Site;
 import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.StructureException;
 import org.biojava.nbio.structure.align.util.AtomCache;
+import org.biojava.nbio.structure.io.density.DensityMapKind;
+import org.biojava.nbio.structure.io.density.DensityMapRequest;
+import org.biojava.nbio.structure.io.density.DensityMapResult;
+import org.biojava.nbio.structure.io.density.NoDensityMapException;
 import org.biojava.nbio.structure.io.FileParsingParameters;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import org.docopt.Docopt;
@@ -304,6 +308,15 @@ public class ProteinParser implements SettingListener{
 	 * without it the loops may keep reading a cached {@code true} forever.
 	 */
 	static volatile boolean moreWork;
+
+	/**
+	 * Which density map to cache for each structure that turns out to have interactions, or
+	 * null to cache none. Set only by {@code --fetch-density}, so an ordinary run never
+	 * reaches the network for a map.
+	 * <p>
+	 * Read from the parsing threads, written once before they start, hence volatile.
+	 */
+	static volatile DensityMapKind prefetchDensityKind = null;
 	private PrintStream out;
 	private PrintStream tsvOut;
 	PrintStream log= System.out;
@@ -368,6 +381,20 @@ public class ProteinParser implements SettingListener{
 		String homeDir = (String) options.get("--home-dir");
 		if(homeDir != null) {
 			settingsManager.setWorkingFolder(homeDir);
+		}
+		String densityCache = (String) options.get("--density-cache");
+		if(densityCache != null) {
+			settingsManager.setDensityCacheFolder(densityCache);
+		}
+		String fetchDensity = (String) options.get("--fetch-density");
+		if(fetchDensity != null) {
+			//Only the presence of the option turns downloading on, so a batch run never
+			//reaches the network unless it was asked to.
+			settingsManager.setDensityMapKind(fetchDensity);
+			settingsManager.setAutoFetchElectronDensity(true);
+			prefetchDensityKind = DensityService.kindForToken(fetchDensity);
+			System.out.println("Density maps will be cached as they are found ("
+					+ prefetchDensityKind + ") in " + DensityService.cacheRoot(settingsManager));
 		}
 
 		if(all && (fromFile || fromList)) {
@@ -808,6 +835,8 @@ public class ProteinParser implements SettingListener{
 
 				//parse listofDetailedConnectionsAsString
 				parseFromScanner(new Scanner(stringForParsablePositiveResultsFile), false);
+
+				prefetchDensityMap(currentStructure, logStringBuilder);
 			}
 			return true;
 		} catch (Exception e) {
@@ -821,6 +850,45 @@ public class ProteinParser implements SettingListener{
 	 * Reads the structure named by the token, counting the attempt whether or not it works.
 	 * @return the structure, or null if it could not be read
 	 */
+	/**
+	 * Caches the density map of a structure that has just been found to have interactions,
+	 * so it can be looked at later without a network.
+	 * <p>
+	 * Does nothing unless {@code --fetch-density} asked for it. Downloads on the parsing
+	 * thread rather than a pool of its own: the point of a batch run is to finish, not to
+	 * finish quickly, and one download at a time is kinder to the servers being asked.
+	 * A failure is logged and stepped over - a missing map must never cost a result.
+	 *
+	 * @param structure the structure just parsed
+	 * @param logStringBuilder this thread's log, to keep the output unmixed
+	 */
+	private void prefetchDensityMap(Structure structure, StringBuilder logStringBuilder) {
+		DensityMapKind configured = prefetchDensityKind;
+		//moreWork is polled here too, so Stop does not have to wait out a queue of downloads
+		if (configured == null || ! moreWork || structure == null || structure.getPdbId() == null) {
+			return;
+		}
+		DensityMapKind kind = DensityService.kindFor(structure, configured.getFileToken());
+		if (kind == null) {
+			logStringBuilder.append("no density map exists for this experimental method\n");
+			return;
+		}
+		try {
+			DensityMapResult map = DensityService.newCache(settingsManager)
+					.getDensityMap(DensityMapRequest.builder(structure.getPdbId())
+							.kind(kind)
+							.allowNonRenderableFormats(false)
+							.build());
+			logStringBuilder.append("cached ").append(map.getKind()).append(" map from ")
+					.append(map.getSource()).append(" (").append(map.getFileSizeBytes() / 1024)
+					.append(" kB)\n");
+		} catch (NoDensityMapException e) {
+			logStringBuilder.append("no density map available: ").append(e.getMessage()).append('\n');
+		} catch (Exception e) {
+			logStringBuilder.append("could not fetch the density map: ").append(e.getMessage()).append('\n');
+		}
+	}
+
 	Structure loadStructure(String token, StringBuilder logStringBuilder) {
 		this.attemptedPDBFiles.increment();
 		try {
