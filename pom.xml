@@ -5,7 +5,11 @@
 	<artifactId>corsslinx</artifactId>
 	<version>0.8.0</version>
 	<properties>
-		<biojava.version>7.2.6</biojava.version>
+		<!-- 7.3.0 for org.biojava.nbio.structure.io.density and JmolPanel.loadDensityMap
+		     (biojava PR #1134). Until 7.3.0 is released this resolves from the local
+		     ~/.m2 only, so a clean clone elsewhere will not build; pin the release as
+		     soon as it ships. -->
+		<biojava.version>7.3.0-SNAPSHOT</biojava.version>
 		<!-- Jmol 16.4.1 plus our thread-safety patch; see jmol-patch/README.md -->
 		<jmol.version>16.4.1-threadsafe-1</jmol.version>
 	</properties>

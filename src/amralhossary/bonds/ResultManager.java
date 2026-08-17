@@ -152,13 +152,15 @@ public class ResultManager {
 
 	
 	/**
-	 * Should be responsible for
-	 * a] file formatting 
-	 * b] TODO (+/-) ED Map loading scripts
-	 * 
+	 * Styles a structure the moment it is loaded: cartoons, then the interacting residues as
+	 * sticks, then the interacting atoms themselves.
+	 * <p>
+	 * The density map is not part of this script - see the note beside the interacting-atom
+	 * styling below, and {@link #interactingAtomsSelection(PdbId)}.
+	 * <p>
 	 * please notice that if {@link #createInteractionString(Bond)} changed, this method <b>MUST be updated</b>
-	 * @param pdbId
-	 * @return
+	 * @param pdbId the structure being shown
+	 * @return the script, or null when the structure has no cached interactions
 	 */
 	public static String generateAfterLoadingJMolScriptString(PdbId pdbId) {
 		//TODO update decodeDrawSphereCommand to ellipse
@@ -208,9 +210,11 @@ public class ResultManager {
 					);//space fill
 			buffer.append("color bonds [255,255,0];\n");
 
-			//TODO complete by writing the Electron density map fetching and showing code
-//				int indexOfOpeningPracket = interactingAtom.indexOf('{'); // atom coordinates
-//				int indexOfClosingPracket = interactingAtom.indexOf('}'); // atom coordinates
+			//The density map is NOT drawn from here. It is fetched and contoured by
+			//ParsingUI's density service, because it may have to be downloaded first and
+			//nothing that reaches the network belongs in a script generator. The selection
+			//it contours around comes from interactingAtomsSelection(PdbId) below, which
+			//covers exactly the atoms selected here.
 		}
 		//A structure is loaded with nothing picked yet, so drop any halo left over from
 		//the interaction picked in the previously shown structure. See
@@ -263,6 +267,30 @@ public class ResultManager {
 			expression.append(stripAtomCoords(atomAndCoords));
 		}
 		return expression.toString();
+	}
+
+	/**
+	 * A Jmol atom expression covering every atom of every interaction found in a structure,
+	 * braced and ready to hand to a command that takes a selection - notably
+	 * {@code JmolPanel.loadDensityMap(file, kind, level, isSigma, selection, radius)}, which
+	 * contours only within a distance of it.
+	 * <p>
+	 * Model tags are stripped, so an ensemble contributes the same atoms once rather than
+	 * once per model. The expression names atoms, not coordinates, so it is equally valid in
+	 * whichever model the viewer is currently showing.
+	 *
+	 * @param pdbId the structure whose cached interactions to cover
+	 * @return {@code {[LYS]48:B.NZ OR [GLY]76:C.C}}, or null when the structure has no cache
+	 *         file or no interactions in it. Callers should skip drawing rather than fall
+	 *         back to {@code {*}}: contouring a whole map is slow enough to look like a hang.
+	 */
+	public static String interactingAtomsSelection(PdbId pdbId) {
+		List<String> bondsList = retreiveBondsList(pdbId);
+		if (bondsList == null || bondsList.isEmpty()) {
+			return null;
+		}
+		String expression = asAtomSelectionExpression(collectInteractingAtoms(bondsList));
+		return expression.isEmpty() ? null : "{" + expression + "}";
 	}
 
 	/** Drops the trailing <code>{x y z}</code> block from a single atom string. */

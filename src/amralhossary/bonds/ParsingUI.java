@@ -25,13 +25,16 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.ButtonModel;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JFileChooser;
@@ -63,6 +66,12 @@ import javax.swing.text.BadLocationException;
 import org.biojava.nbio.structure.PdbId;
 import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
+import org.biojava.nbio.structure.io.density.DensityMapCache;
+import org.biojava.nbio.structure.io.density.DensityMapKind;
+import org.biojava.nbio.structure.io.density.DensityMapRequest;
+import org.biojava.nbio.structure.io.density.DensityMapResult;
+import org.biojava.nbio.structure.io.density.DensityMapSource;
+import org.biojava.nbio.structure.io.density.NoDensityMapException;
 
 import amralhossary.bonds.SettingsManager.SettingListener;
 import java.awt.event.MouseAdapter;
@@ -183,6 +192,36 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			return thread;
 		}
 	});
+	/**
+	 * Density maps are fetched on this one thread, never on the EDT and never on the Jmol
+	 * thread.
+	 * <p>
+	 * Not the EDT because a fetch reaches the network and can take seconds. Not the Jmol
+	 * thread because that thread must stay free to draw: a download queued behind it would
+	 * stall every zoom and frame change until it finished. A single thread keeps downloads
+	 * from competing with one another, and keeps them in the order the user asked for them.
+	 */
+	private final ExecutorService densityThread = Executors.newSingleThreadExecutor(new ThreadFactory() {
+		public Thread newThread(Runnable r) {
+			Thread thread = new Thread(r, "density");
+			thread.setDaemon(true);
+			return thread;
+		}
+	});
+	/**
+	 * What is known about each structure's map, drawn against its row in the list.
+	 * Written from the density thread and read by the renderer on the EDT, hence concurrent.
+	 */
+	private final Map<PdbId, DensityService.DensityState> densityStates =
+			new ConcurrentHashMap<PdbId, DensityService.DensityState>();
+	/** Tooltip detail per structure - the source and size, or why there is no map. */
+	private final Map<PdbId, String> densityDetails = new ConcurrentHashMap<PdbId, String>();
+	/**
+	 * Bumped every time a different structure is shown. A fetch captures it before starting
+	 * and re-checks it before drawing, so a map that arrives after the user has moved on is
+	 * cached but never drawn over the structure now on screen.
+	 */
+	private final AtomicInteger densityGeneration = new AtomicInteger();
 	/** Latest structure waiting to be shown; see {@link #structureLoaded(Structure)}. */
 	private final AtomicReference<Structure> pendingStructure = new AtomicReference<Structure>();
 	/** Whether a list selection is already queued; see {@link #interactionsFoundInStructure(PdbId)}. */
@@ -679,8 +718,10 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 					getStopButton().setEnabled(true);
 					((PdbIdListModel)getFoundStructuresWithInteractionsList().getModel()).clear();
 					//a new run replaces every result, so nothing carries over - including
-					//which interaction the selection was following
+					//which interaction the selection was following, and what was known about
+					//each structure's density map
 					showBondsOfStructure(NO_BOND_LIST_ITEMS, 1);
+					forgetDensityStates();
 					Scanner scanner = null;
 					ButtonModel selectionModel = getButtonGroup().getSelection();
 					try {
@@ -895,6 +936,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			});
 			
 			foundStructuresWithInteractionsList.setFixedCellHeight(foundStructuresWithInteractionsList.getFont().getSize()+1);
+			foundStructuresWithInteractionsList.setCellRenderer(new DensityStateRenderer());
 			foundStructuresWithInteractionsList.addListSelectionListener(new ListSelectionListener() {
 				public void valueChanged(ListSelectionEvent e) {
 					final int numOfSelectedItems = foundStructuresWithInteractionsList.getSelectedIndices().length;
@@ -920,6 +962,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 //						out.setEnabled(false);
 						showStructure(structure, ResultManager.generateAfterLoadingJMolScriptString(pdbId));  //TODO review
 //						out.setEnabled(true);
+						requestDensityFor(pdbId, structure);
 					} catch (Exception e1) {
 						e1.printStackTrace();
 					}
@@ -1377,6 +1420,224 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	}
 
 	/**
+	 * Shows the density map of the structure just put on screen, fetching it first if that
+	 * is allowed and it is not already cached.
+	 * <p>
+	 * Called from the structures-list selection, on the EDT. It only queues work.
+	 *
+	 * @param pdbId the structure now selected
+	 * @param structure the same structure, needed for its experimental method
+	 */
+	private void requestDensityFor(final PdbId pdbId, final Structure structure) {
+		//A new structure invalidates any fetch still in flight for the previous one.
+		final int generation = densityGeneration.incrementAndGet();
+
+		//Whatever was contoured belongs to the structure that has just been replaced.
+		runOnJmolThread(new Runnable() {
+			public void run() {
+				getJmolPanel().clearDensityMaps();
+			}
+		});
+
+		if (! settingsManager.isShowElectronDensity()) {
+			return;
+		}
+
+		final DensityMapKind kind = DensityService.kindFor(structure, settingsManager.getDensityMapKind());
+		if (kind == null) {
+			//An NMR ensemble. Not a failure and not worth a network round trip.
+			setDensityState(pdbId, DensityService.DensityState.NO_DENSITY,
+					"No density map exists for this experimental method");
+			return;
+		}
+
+		final String selection = ResultManager.interactingAtomsSelection(pdbId);
+		if (selection == null) {
+			//Nothing to contour around, and contouring the whole map instead would be slow
+			//enough to look like a hang.
+			return;
+		}
+
+		setDensityState(pdbId, DensityService.DensityState.QUEUED, "Waiting to fetch");
+		densityThread.execute(new Runnable() {
+			public void run() {
+				fetchAndDrawDensity(pdbId, kind, selection, generation);
+			}
+		});
+	}
+
+	/**
+	 * Runs on the density thread: find the map, then hand the drawing to the Jmol thread.
+	 * <p>
+	 * The two failure modes are kept apart deliberately. {@link NoDensityMapException} means
+	 * every source was asked and none has a map for this entry, which is a fact about the
+	 * entry. Any other {@link IOException} means the network let us down, which is a fact
+	 * about today - reporting the second as the first would quietly tell the user that a
+	 * structure has no density when it may have plenty.
+	 */
+	private void fetchAndDrawDensity(PdbId pdbId, DensityMapKind kind, String selection, int generation) {
+		DensityMapCache cache = DensityService.newCache(settingsManager);
+		try {
+			DensityMapResult map = findCachedDensity(cache, pdbId, kind);
+			if (map == null) {
+				if (! settingsManager.isAutoFetchElectronDensity()) {
+					setDensityState(pdbId, DensityService.DensityState.NOT_FETCHED,
+							"Not downloaded - switch on \"Download density maps when needed\"");
+					return;
+				}
+				setDensityState(pdbId, DensityService.DensityState.FETCHING, "Downloading...");
+				map = cache.getDensityMap(DensityMapRequest.builder(pdbId)
+						.kind(kind)
+						//wwPDB serves structure factors, which need a Fourier transform
+						//before anything can be drawn from them; asking for renderable
+						//formats only skips that source rather than drawing nothing.
+						.allowNonRenderableFormats(false)
+						.build());
+			}
+			setDensityState(pdbId, DensityService.DensityState.AVAILABLE, describe(map));
+			drawDensity(map, selection, generation);
+		} catch (NoDensityMapException e) {
+			setDensityState(pdbId, DensityService.DensityState.NO_DENSITY, e.getMessage());
+		} catch (IOException e) {
+			setDensityState(pdbId, DensityService.DensityState.FAILED,
+					"Could not fetch the map: " + e.getMessage());
+			System.err.println("Density fetch failed for " + pdbId.getId() + ": " + e);
+		} catch (RuntimeException e) {
+			setDensityState(pdbId, DensityService.DensityState.FAILED, String.valueOf(e.getMessage()));
+			System.err.println("Density fetch failed for " + pdbId.getId() + ": " + e);
+		}
+	}
+
+	/** @return the cached map for any source in the chain, or null if none is cached */
+	private DensityMapResult findCachedDensity(DensityMapCache cache, PdbId pdbId, DensityMapKind kind) {
+		if (kind == DensityMapKind.AUTO) {
+			//AUTO names no particular file, so there is nothing to probe for by name.
+			return null;
+		}
+		for (DensityMapSource source : cache.getSourceChain(kind)) {
+			DensityMapResult cached = cache.getCached(pdbId, kind, source);
+			if (cached != null && cached.isRenderable()) {
+				return cached;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Contours {@code map} around the interacting atoms, on the Jmol thread.
+	 * <p>
+	 * {@code loadDensityMap} ends in an {@code evalString}, so it touches the viewer and has
+	 * to be queued like every other viewer call rather than run from the fetch thread.
+	 */
+	private void drawDensity(final DensityMapResult map, final String selection, final int generation) {
+		runOnJmolThread(new Runnable() {
+			public void run() {
+				if (generation != densityGeneration.get()) {
+					//The user moved on while this was downloading. The map is cached for
+					//next time; drawing it now would put it over a different structure.
+					return;
+				}
+				double radius = settingsManager.getDensityClipRadius();
+				Double recommended = map.getRecommendedContourLevel();
+				if (map.getKind() == DensityMapKind.EM && recommended != null) {
+					//An EM map is contoured at the level its depositors chose. A multiple of
+					//sigma means nothing for one.
+					getJmolPanel().loadDensityMap(map.getFile(), map.getKind(),
+							recommended.doubleValue(), false, selection, radius);
+				} else {
+					getJmolPanel().loadDensityMap(map.getFile(), map.getKind(),
+							settingsManager.getDensityContourSigma(), true, selection, radius);
+				}
+			}
+		});
+	}
+
+	/** @return a short description of where a map came from, for the list tooltip */
+	private static String describe(DensityMapResult map) {
+		return String.format("%s from %s, %,d kB%s", map.getKind(), map.getSource(),
+				map.getFileSizeBytes() / 1024, map.isFromCache() ? " (cached)" : "");
+	}
+
+	/**
+	 * Draws each structure with a marker for what is known about its density map.
+	 * <p>
+	 * The marker is a character rather than an icon so it costs nothing to draw down a list
+	 * of thousands, and it carries the state in its shape as well as its colour, which a
+	 * colour-blind reader still gets. The detail goes in the tooltip.
+	 */
+	private class DensityStateRenderer extends DefaultListCellRenderer {
+
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+				boolean isSelected, boolean cellHasFocus) {
+			super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+
+			DensityService.DensityState state = densityStates.get(value);
+			if (state == null || ! settingsManager.isShowElectronDensity()) {
+				setToolTipText(null);
+				return this;
+			}
+			setText(marker(state) + " " + String.valueOf(value));
+			if (! isSelected) {
+				setForeground(colour(state));
+			}
+			String detail = densityDetails.get(value);
+			setToolTipText(detail == null || detail.isEmpty() ? state.name() : detail);
+			return this;
+		}
+
+		private String marker(DensityService.DensityState state) {
+			switch (state) {
+				case AVAILABLE:   return "●";   // filled circle: the map is here
+				case FETCHING:    return "◐";   // half filled: on its way
+				case QUEUED:      return "○";   // hollow: waiting its turn
+				case NOT_FETCHED: return "○";
+				case NO_DENSITY:  return "·";   // a dot: nothing to have
+				case FAILED:      return "✕";   // a cross: went wrong, retryable
+				default:          return " ";
+			}
+		}
+
+		private Color colour(DensityService.DensityState state) {
+			switch (state) {
+				case AVAILABLE:   return new Color(0, 128, 0);
+				case FETCHING:    return new Color(0, 90, 190);
+				case QUEUED:      return Color.GRAY;
+				case NOT_FETCHED: return Color.GRAY;
+				case NO_DENSITY:  return Color.LIGHT_GRAY;
+				case FAILED:      return new Color(180, 0, 0);
+				default:          return Color.BLACK;
+			}
+		}
+	}
+
+	/**
+	 * Drops everything known about density maps, for when the results list is replaced.
+	 * <p>
+	 * The cached files themselves are left alone: they are still valid, and re-selecting a
+	 * structure finds them again without a download. Only this session's knowledge goes.
+	 */
+	private void forgetDensityStates() {
+		densityStates.clear();
+		densityDetails.clear();
+		//abandon any fetch still in flight for a structure that is no longer listed
+		densityGeneration.incrementAndGet();
+	}
+
+	/** Records a state and repaints the row showing it. Callable from any thread. */
+	private void setDensityState(PdbId pdbId, DensityService.DensityState state, String detail) {
+		densityStates.put(pdbId, state);
+		densityDetails.put(pdbId, detail == null ? "" : detail);
+		runOnEdt(new Runnable() {
+			public void run() {
+				getFoundStructuresWithInteractionsList().repaint();
+			}
+		});
+	}
+
+	/**
 	 * Loads {@code structure} into the viewer and, if given, runs {@code afterLoadScript}
 	 * against it. Both happen in one task so that no other Jmol work can slip between
 	 * the load and the script that styles it.
@@ -1482,6 +1743,28 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 		//so switching between one model and all of them takes effect now rather than at
 		//the next time the user happens to change model
 		applyViewerModel(currentModelNumber);
+
+		//Density settings take effect on the structure already on screen, rather than at the
+		//next selection. The cache is rebuilt per fetch from the live settings, so nothing
+		//here has to be pushed anywhere - unlike AtomCache, which is built once and never
+		//told (see KNOWN-ISSUES.md).
+		PdbId shown = getFoundStructuresWithInteractionsList().getSelectedValue();
+		if (shown == null) {
+			return;
+		}
+		if (! settingsManager.isShowElectronDensity()) {
+			densityGeneration.incrementAndGet();   // abandon anything in flight
+			runOnJmolThread(new Runnable() {
+				public void run() {
+					getJmolPanel().clearDensityMaps();
+				}
+			});
+			return;
+		}
+		Structure structure = ResultManager.getStructureById(shown);
+		if (structure != null) {
+			requestDensityFor(shown, structure);
+		}
 	}
 	
 	
@@ -1552,9 +1835,11 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			final PdbIdListModel pdbIdListModel = (PdbIdListModel) foundStructuresWithInteractionsList.getModel();
 			if (scanner != null && clean) {
 				pdbIdListModel.clear();
-				//every result is being replaced, so the interactions list and the
-				//interaction the selection was following go with them
+				//every result is being replaced, so the interactions list, the interaction
+				//the selection was following, and what was known about each density map all
+				//go with them
 				showBondsOfStructure(NO_BOND_LIST_ITEMS, 1);
+				forgetDensityStates();
 				//TODO clear the Jmolpanel too.
 				parser.initialize();
 			}
