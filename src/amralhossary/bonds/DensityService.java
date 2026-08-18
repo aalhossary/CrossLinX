@@ -7,6 +7,7 @@ import java.util.Set;
 import org.biojava.nbio.structure.ExperimentalTechnique;
 import org.biojava.nbio.structure.PDBHeader;
 import org.biojava.nbio.structure.Structure;
+import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
 import org.biojava.nbio.structure.io.LocalPDBDirectory.FetchBehavior;
 import org.biojava.nbio.structure.io.density.DensityMapCache;
 import org.biojava.nbio.structure.io.density.DensityMapKind;
@@ -157,5 +158,40 @@ public class DensityService {
 	/** @return where cached maps are written, for reporting to the user */
 	public static File cacheRoot(SettingsManager settings) {
 		return new File(newCache(settings).getCachePath());
+	}
+
+	/**
+	 * Whether Jmol can fetch this kind of map itself.
+	 * <p>
+	 * Jmol has {@code eds} and {@code edsdiff} keywords, which resolve through the PDBe
+	 * density server, but nothing equivalent for a cryo-EM map - and an EM map wants its
+	 * depositors' contour level, which only the BioJava path knows. So EM stays on that path.
+	 */
+	public static boolean hasJmolEdsKeyword(DensityMapKind kind) {
+		return kind == DensityMapKind.TWO_FO_FC || kind == DensityMapKind.FO_FC
+				|| kind == DensityMapKind.AUTO;
+	}
+
+	/** @return the Jmol keyword that fetches this kind: {@code eds} or {@code edsdiff} */
+	public static String jmolEdsKeyword(DensityMapKind kind) {
+		return kind == DensityMapKind.FO_FC ? "edsdiff" : "eds";
+	}
+
+	/**
+	 * @return the isosurface id to draw under - deliberately the same ids
+	 *         {@code JmolPanel.clearDensityMaps()} removes, so both routes clean up after
+	 *         each other
+	 */
+	public static String jmolIsosurfaceId(DensityMapKind kind) {
+		return kind == DensityMapKind.FO_FC ? JmolPanel.ISOSURFACE_ID_FOFC
+				: JmolPanel.ISOSURFACE_ID_2FOFC;
+	}
+
+	/**
+	 * @return how to colour it: one signed red/green surface for a difference map, plain blue
+	 *         otherwise, matching what {@code JmolPanel.loadDensityMap} draws
+	 */
+	public static String jmolColouring(DensityMapKind kind) {
+		return kind == DensityMapKind.FO_FC ? "sign red green" : "color blue";
 	}
 }

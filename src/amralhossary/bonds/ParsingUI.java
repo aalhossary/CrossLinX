@@ -73,6 +73,7 @@ import org.biojava.nbio.structure.io.density.DensityMapRequest;
 import org.biojava.nbio.structure.io.density.DensityMapResult;
 
 import org.biojava.nbio.structure.io.density.NoDensityMapException;
+import org.jmol.api.JmolViewer;
 
 import amralhossary.bonds.SettingsManager.SettingListener;
 import java.awt.event.MouseAdapter;
@@ -1477,6 +1478,17 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	 * structure has no density when it may have plenty.
 	 */
 	private void fetchAndDrawDensity(PdbId pdbId, DensityMapKind kind, String selection, int generation) {
+		//Jmol fetches a box around the very atoms being contoured, which a map covering the
+		//whole cell need not reach at all; see drawWithJmolEds. It is tried first, and only
+		//when downloading is allowed, because unlike the cache probe below it goes online.
+		if (settingsManager.isAutoFetchElectronDensity() && DensityService.hasJmolEdsKeyword(kind)) {
+			setDensityState(pdbId, DensityService.DensityState.FETCHING, "Downloading...");
+			if (drawWithJmolEds(pdbId, kind, selection, generation)) {
+				return;
+			}
+			//EDS could not answer - no PDB ID, no entry at PDBe, or no network. The cached
+			//map may still be usable, so fall through rather than give up.
+		}
 		try {
 			DensityMapResult map = findCachedDensity(pdbId, kind);
 			if (map == null) {
@@ -1507,6 +1519,74 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			System.err.println("Density fetch failed for " + pdbId.getId() + ": " + e);
 		}
 	}
+
+	/**
+	 * Draws the density using Jmol's own EDS fetching, and reports whether anything appeared.
+	 * <p>
+	 * This is the one route that does not have the coverage problem. Jmol substitutes the
+	 * bounding box of the {@code within} selection into a density-server box request
+	 * (see {@code IsoExt}, where {@code box/0,0,0/0,0,0} is rewritten), so it asks for exactly
+	 * the region being contoured rather than a whole unit cell that the atoms may sit outside.
+	 * It is also far smaller: 58 kB against 5.3 MB for one entry measured here.
+	 * <p>
+	 * It needs Jmol to know which entry is loaded, which it takes from {@code _entry.id}. That
+	 * item was missing from BioJava's mmCIF writer until recently, which is why this could not
+	 * be used before.
+	 * <p>
+	 * The fetch happens inside Jmol's own command, on the Jmol thread, so a slow network stalls
+	 * the viewer for its duration. Accepted because the payload is small; if that ever changes,
+	 * this is the place to look.
+	 *
+	 * @return true if a surface was drawn
+	 */
+	private boolean drawWithJmolEds(final PdbId pdbId, final DensityMapKind kind,
+			final String selection, final int generation) {
+		final boolean[] drawn = new boolean[1];
+		final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+		runOnJmolThread(new Runnable() {
+			public void run() {
+				try {
+					if (generation != densityGeneration.get()) {
+						return;
+					}
+					JmolViewer viewer = getJmolPanel().getViewer();
+					Object id = viewer.evaluateExpression("_M.pdbID");
+					if (id == null || String.valueOf(id).trim().isEmpty()) {
+						//An older BioJava wrote no _entry.id, so Jmol cannot name the entry.
+						return;
+					}
+					viewer.scriptWait(String.format(java.util.Locale.US,
+							"isosurface ID \"%s\" delete; isosurface ID \"%s\" %s sigma %.4f within %.1f %s %s mesh nofill;",
+							DensityService.jmolIsosurfaceId(kind), DensityService.jmolIsosurfaceId(kind),
+							DensityService.jmolColouring(kind), settingsManager.getDensityContourSigma(),
+							settingsManager.getDensityClipRadius(), selection,
+							DensityService.jmolEdsKeyword(kind)));
+					drawn[0] = String.valueOf(viewer.getProperty("String", "shapeInfo", null))
+							.contains(DensityService.jmolIsosurfaceId(kind));
+				} catch (RuntimeException e) {
+					System.err.println("Jmol could not fetch density for " + pdbId.getId() + ": " + e);
+				} finally {
+					done.countDown();
+				}
+			}
+		});
+		try {
+			//Bounded: a hung fetch must not leave the caller waiting for ever, and falling
+			//through to the cached map is a perfectly good outcome.
+			done.await(EDS_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			return false;
+		}
+		if (drawn[0]) {
+			setDensityState(pdbId, DensityService.DensityState.AVAILABLE,
+					kind + " from the PDBe density server, fetched around these atoms");
+		}
+		return drawn[0];
+	}
+
+	/** How long to wait for Jmol's own density fetch before falling back to the cache. */
+	private static final int EDS_TIMEOUT_SECONDS = 30;
 
 	/**
 	 * Looks for an already-downloaded map, without touching the network.
@@ -1618,9 +1698,9 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 				|| shapes.contains(JmolPanel.ISOSURFACE_ID_EM)) {
 			return;
 		}
-		String detail = "The " + map.getSource() + " map covers one unit cell, and these atoms lie "
-				+ "outside that box. The density exists one cell away, but is not drawn here. Try "
-				+ "another source.";
+		String detail = "The cached " + map.getSource() + " map covers one unit cell, and these atoms "
+				+ "lie outside that box. Switch on \"Download density maps when needed\" to fetch a "
+				+ "map around these atoms instead.";
 		densityDetails.put(map.getPdbId(), detail);
 		System.out.println(map.getPdbId().getId() + ": " + detail);
 		runOnEdt(new Runnable() {
