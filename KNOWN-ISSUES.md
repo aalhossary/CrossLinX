@@ -74,9 +74,37 @@ Measured on real entries, contouring at the 5 Å clip radius around the interact
 
 The cause is coverage, not contouring. A map covers one box; the deposited coordinates need
 not lie inside it. All four of 3ALB's LYS48–GLY76 cross-links have a negative z, and the map
-box runs from the origin to `{58, 76, 134}`, so there is simply no density at those atoms to
-draw. Enlarging the clip radius to 20 Å eventually reaches *into* the box and draws something,
-but that something is not the density at the cross-link.
+box runs from the origin to `{58, 76, 134}`.
+
+**The density is not missing, only displaced.** Read from the CCP4 header, 3ALB's map is
+64×90×150 samples with start `0,0,0` over a cell of 59.1 × 77.4 × 135.1 Å — exactly one full
+cell, and therefore periodic. So the density at z = −24.2 *is* the density at z = 110.9.
+Contouring at the lattice-translated position proves it: every cross-link yields a good
+surface there.
+
+| atom | deposited | translated into the cell | surface there |
+|---|---|---|---|
+| LYS48:C.NZ | −9.10, −10.34, −20.08 | 50.00, 67.06, 115.02 | 325 vertices |
+| LYS48:B.NZ | 11.60, 6.05, −24.20 | 11.60, 6.05, 110.90 | 294 vertices |
+| LYS48:A.NZ | 23.66, 25.90, −14.40 | 23.66, 25.90, 120.70 | 321 vertices |
+| LYS48:D.NZ | 15.08, 2.61, −14.61 | 15.08, 2.61, 120.49 | 272 vertices |
+
+What has *not* been found is a way to make Jmol draw that density at the atoms. Tried and
+rejected, all still empty:
+
+- `isosurface … periodic …`, which does exist and does wrap voxel lookups
+  (`VolumeData.indexLower` wraps the index when `isPeriodic`), but the `within` clip is
+  evaluated against the map's box first;
+- `offset {0 0 −135.1}` both inside the isosurface command and as a later command on the
+  finished surface — the surface does not move;
+- setting the cell on the model first. Jmol has no unit cell for these models either way
+  (`{atom}.fx` returns the Cartesian x, whether the structure arrives as BioJava-written
+  mmCIF or is loaded straight from the original file). `unitcell "a=59.1,b=77.4,c=135.1,
+  alpha=90,beta=90,gamma=90"` does set one — `.fx` becomes −0.154 — but the isosurface is
+  still empty.
+
+Enlarging the clip radius to 20 Å eventually reaches *into* the box and draws something, but
+that something is not the density at the cross-link.
 
 This matters more for CrossLinX than for a general viewer: a cross-link is often at a crystal
 contact, which is exactly where an entry's coordinates run outside the cell box.
@@ -85,12 +113,16 @@ The application copes rather than fixes: when a map loads but contours to nothin
 structure's tooltip says the map does not cover those atoms, instead of leaving the user with
 "available" and an empty screen.
 
-**Worth doing, upstream:** BioJava asks the Mol* volume server for
-`/volume-server/x-ray/<id>/cell`, which is the whole cell. The same server also serves
-`/box/<a,b,c>/<x,y,z>`, an arbitrary region. Asking for a box around the atoms of interest
-would both fix the coverage and be far smaller than a cell — 3ALB's cell response is 5.3 MB.
-Failing that, the density is only a lattice translation away, so wrapping the map periodically
-(or shifting the atoms into the cell before contouring) would also work.
+**Worth doing, upstream, and the cleanest of the options:** BioJava asks the Mol* volume
+server for `/volume-server/x-ray/<id>/cell`, which is the whole cell. The same server also
+serves `/box/<a,b,c>/<x,y,z>`, an arbitrary region. Asking for a box around the atoms of
+interest sidesteps the whole problem — the map arrives already covering them — and is far
+smaller: 3ALB's cell response is 5.3 MB.
+
+**The alternative** is to do what Coot and PyMOL do and expand the map by symmetry to the
+region the model occupies, rather than expecting the viewer to wrap it. That is real
+crystallographic work and does not belong in this application; it belongs wherever the map is
+prepared.
 
 ## Smaller things
 

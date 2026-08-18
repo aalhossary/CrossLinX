@@ -1597,11 +1597,18 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	/**
 	 * Says so when a map loads but contours to nothing around the interacting atoms.
 	 * <p>
-	 * A full CCP4 map covers one cell box, and an entry's coordinates need not lie inside it:
-	 * all four of 3ALB's cross-links have a negative z, so the PDBe map draws nothing at them
-	 * however large the clip radius. Without this the user is told the map is available and
-	 * then shown an empty screen, with no way to tell that apart from a bug. The volume
-	 * servers serve a box around the entry instead, and do not have the problem.
+	 * A map covers one cell box, and an entry's coordinates need not lie inside it: all four
+	 * of 3ALB's cross-links have a negative z, outside a map that runs from the origin.
+	 * <p>
+	 * The density is not missing, only displaced. These maps are periodic - 3ALB's covers
+	 * exactly one cell, 64x90x150 samples over 59.1 x 77.4 x 135.1 A - so the density at
+	 * z = -24.2 is the density at z = 110.9, and contouring there yields a perfectly good
+	 * surface. What has not been found is a way to make Jmol draw it at the atoms: neither
+	 * {@code isosurface ... periodic} nor {@code offset}, with or without a unit cell set on
+	 * the model, clips successfully around atoms outside the box. See KNOWN-ISSUES.md.
+	 * <p>
+	 * Until then, say so. Being told the map is available and then shown an empty screen is
+	 * indistinguishable from a bug.
 	 */
 	private void warnIfNothingWasDrawn(DensityMapResult map) {
 		String shapes = String.valueOf(getJmolPanel().getViewer()
@@ -1611,9 +1618,9 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 				|| shapes.contains(JmolPanel.ISOSURFACE_ID_EM)) {
 			return;
 		}
-		String detail = "The " + map.getSource() + " map does not cover these atoms - it is a "
-				+ "whole-cell map and this entry's coordinates fall outside its box. Try another "
-				+ "source, or a larger clip radius.";
+		String detail = "The " + map.getSource() + " map covers one unit cell, and these atoms lie "
+				+ "outside that box. The density exists one cell away, but is not drawn here. Try "
+				+ "another source.";
 		densityDetails.put(map.getPdbId(), detail);
 		System.out.println(map.getPdbId().getId() + ": " + detail);
 		runOnEdt(new Runnable() {
