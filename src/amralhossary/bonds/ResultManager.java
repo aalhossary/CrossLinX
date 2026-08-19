@@ -37,7 +37,9 @@ import org.jmol.api.JmolViewer;
  *
  */
 public class ResultManager {
+	/** Tag for a persisted domain sphere; see encodeDrawSphereCommand, which has no callers. */
 	private static final String SPHERE_KEYWORD = "sphere";
+
 
 	//selectAllModels is a viewer-wide flag that outlives the structure that set it, and
 	//generateAfterLoadingJMolScriptString deliberately turns it OFF at the end of every
@@ -84,6 +86,15 @@ public class ResultManager {
 	 * the picked pair.
 	 */
 	private static final String INTERACTING_ATOM_SPACEFILL = "0.5";
+	/**
+	 * Spacefill radius of the picked pair when halos are switched off.
+	 * <p>
+	 * Only then. With a halo the pair keeps {@link #INTERACTING_ATOM_SPACEFILL}, because
+	 * enlarging it as well made it read as a pair of bigger atoms rather than as the picked
+	 * pair, and hid the bond underneath. Without a halo something has to distinguish it, and
+	 * size is what there is.
+	 */
+	private static final String SELECTED_ATOM_SPACEFILL = "0.9";
 	public static final String CACHE_RESULT_FOLDER = "temp/cashe";
 	public static final String START_OF_STRUCTURE_PREFIX = "in structure#";
 	public static final String FAILED_TO_PARSE_AMINOACID = "##Failed to Parse ";
@@ -98,42 +109,6 @@ public class ResultManager {
 		return cacheFolder;
 	}
 
-//	/**
-//	 * @param token
-//	 * @param specificCollectionScriptString 
-//	 * @param foundInteractions
-//	 * @return
-//	 * @deprecated Update according to new parameters, and update decodeDrawSphereCommand to ellipse
-//	 */
-//	static String generateJMolScriptString(String token, String specificCollectionScriptString, Map<GroupOfInterest, Set<Bond>> foundInteractions) {
-//		StringBuffer buffer = new StringBuffer();
-//		buffer.append(GENERAL_SELECTION_SCRIPT);
-//		//add spheres
-//		String[] lines =specificCollectionScriptString.split("\r?\n");
-//		for (String line : lines) {
-//			if (line.startsWith(SPHERE_KEYWORD) && settingsManager.isDomainEnabled()) {
-//				buffer.append(decodeDrawSphereCommand(line));
-//			}
-//		}
-//		//			buffer.append("restrict bonds not selected;");
-//
-//		buffer.append("SELECT (");
-//		
-//		Set<GroupOfInterest> lysines = foundInteractions.keySet();
-//		for (GroupOfInterest lysine : lysines) {
-//			addResidueToSelectionStringBuffer(buffer,lysine);
-//			Set<GroupOfInterest> set = foundInteractions.get(lysine);
-//			for (GroupOfInterest interactionTarget : set) {
-//				addResidueToSelectionStringBuffer(buffer,interactionTarget);
-//			}
-//		}
-//		buffer.append("FALSE) ;");//wanted Atoms
-//		buffer.append("spacefill 65%;color cpk;");//space fill
-//		//			buffer.append("selectionHalos ON;");
-//		return buffer.toString();
-//	}
-
-
 	public static Structure getStructureById(PdbId pdbId) {
 		try {
 			LocalPDBDirectory fileReader = null;
@@ -142,7 +117,11 @@ public class ResultManager {
 			} else if(UserConfiguration.MMCIF_FORMAT.equals(settingsManager.getFileFormat())) {
 				fileReader = new CifFileReader(settingsManager.getPdbFilePath());
 			}
-//			fileReader.setFetchBehavior(settingsManager.isAutoFetch());
+			//A fresh reader per call, so the format is always current - but the fetch
+			//behaviour was never set, leaving the viewer's own loading to BioJava's default
+			//whatever the user had chosen. isAutoFetch() answers a boolean; the reader wants
+			//the behaviour itself, which is what getFetchBehavior() is for.
+			fileReader.setFetchBehavior(settingsManager.getFetchBehavior());
 			return fileReader.getStructureById(pdbId);
 		} catch (IOException e1) {
 			e1.printStackTrace();
@@ -293,6 +272,70 @@ public class ResultManager {
 		return expression.isEmpty() ? null : "{" + expression + "}";
 	}
 
+	/**
+	 * The region every interaction of a structure occupies, padded, for asking a density server
+	 * for exactly that box.
+	 * <p>
+	 * The coordinates are already in the cache file - {@link #createInteractionString(Bond)}
+	 * writes each atom followed by its <code>{x y z}</code>, and only
+	 * {@link #stripAtomCoords(String)} throws them away - so this needs no structure loaded.
+	 * <p>
+	 * It covers every interacting atom of the entry rather than one picked interaction, which is
+	 * what makes the result cacheable: for a given entry and padding it is the same box every
+	 * time, so a cached box never has to be tested for containing some other box.
+	 *
+	 * @param pdbId the structure
+	 * @param padding Angstroms to grow the box by on every side, normally the clip radius
+	 * @return <code>{min, max}</code> in Angstroms, or null when the structure has no cache file
+	 */
+	public static double[][] interactingAtomsBounds(PdbId pdbId, double padding) {
+		List<String> bondsList = retreiveBondsList(pdbId);
+		if (bondsList == null || bondsList.isEmpty()) {
+			return null;
+		}
+		double[] min = {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
+		double[] max = {-Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE};
+		boolean any = false;
+		for (String atomAndCoords : collectInteractingAtoms(bondsList)) {
+			double[] xyz = parseAtomCoords(atomAndCoords);
+			if (xyz == null) {
+				continue;
+			}
+			any = true;
+			for (int i = 0; i < 3; i++) {
+				min[i] = Math.min(min[i], xyz[i]);
+				max[i] = Math.max(max[i], xyz[i]);
+			}
+		}
+		if (! any) {
+			return null;
+		}
+		for (int i = 0; i < 3; i++) {
+			min[i] -= padding;
+			max[i] += padding;
+		}
+		return new double[][] {min, max};
+	}
+
+	/** @return the <code>{x y z}</code> of one atom string, or null if it carries none */
+	private static double[] parseAtomCoords(String atomAndCoords) {
+		int open = atomAndCoords.indexOf('{');
+		int close = atomAndCoords.indexOf('}', open);
+		if (open < 0 || close < 0) {
+			return null;
+		}
+		String[] parts = atomAndCoords.substring(open + 1, close).trim().split("\\s+");
+		if (parts.length != 3) {
+			return null;
+		}
+		try {
+			return new double[] {Double.parseDouble(parts[0]), Double.parseDouble(parts[1]),
+					Double.parseDouble(parts[2])};
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
 	/** Drops the trailing <code>{x y z}</code> block from a single atom string. */
 	private static String stripAtomCoords(String atomAndCoords) {
 		int indexOfOpeningBracket = atomAndCoords.indexOf('{'); // atom coordinates
@@ -340,7 +383,12 @@ public class ResultManager {
 			buffer.append("spacefill ").append(INTERACTING_ATOM_SPACEFILL).append(";\n");
 		}
 		buffer.append("SELECT (").append(atom1).append(" OR ").append(atom2).append(");");
-		buffer.append("set selectionHalos ON;\n");
+		if (settingsManager.isShowSelectionHalos()) {
+			buffer.append("set selectionHalos ON;\n");
+		} else {
+			//No halo, so the pair has to stand out some other way.
+			buffer.append("spacefill ").append(SELECTED_ATOM_SPACEFILL).append(";\n");
+		}
 		return buffer.toString();
 	}
 

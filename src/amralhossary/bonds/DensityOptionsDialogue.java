@@ -64,6 +64,8 @@ public class DensityOptionsDialogue extends JDialog {
 	private JComboBox<String> kindComboBox;
 	private JSpinner contourSpinner;
 	private JSpinner radiusSpinner;
+	private JSpinner maxDownloadSpinner;
+	private JCheckBox showLegendCheckBox;
 	private JTextField cacheFolderTextField;
 	private JButton cacheFolderButton;
 	private SourceListPanel xraySources;
@@ -72,7 +74,7 @@ public class DensityOptionsDialogue extends JDialog {
 	public DensityOptionsDialogue(JDialog owner) {
 		super(owner);
 		setTitle("Electron density");
-		setBounds(100, 100, 520, 520);
+		setBounds(100, 100, 560, 590);
 
 		JPanel contentPanel = new JPanel();
 		contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
@@ -81,21 +83,26 @@ public class DensityOptionsDialogue extends JDialog {
 
 		GridBagLayout layout = new GridBagLayout();
 		layout.columnWidths = new int[]{140, 240, 90, 0};
-		layout.rowHeights = new int[]{23, 23, 23, 23, 23, 200, 0};
+		layout.rowHeights = new int[]{23, 23, 23, 23, 23, 23, 23, 200, 0};
 		layout.columnWeights = new double[]{0.0, 1.0, 0.0, Double.MIN_VALUE};
-		layout.rowWeights = new double[]{0.0, 0.0, 0.0, 0.0, 0.0, 1.0, Double.MIN_VALUE};
+		layout.rowWeights = new double[]{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, Double.MIN_VALUE};
 		contentPanel.setLayout(layout);
 
 		addLabelled(contentPanel, "Map to show", getKindComboBox(), 0);
 		addLabelled(contentPanel, "Contour level (sigma)", getContourSpinner(), 1);
 		addLabelled(contentPanel, "Clip radius (Å)", getRadiusSpinner(), 2);
+		addLabelled(contentPanel, "Largest download (MB)", getMaxDownloadSpinner(), 3);
 
-		contentPanel.add(new JLabel("Cache folder"), at(0, 3, 1));
-		contentPanel.add(getCacheFolderTextField(), at(1, 3, 1));
-		contentPanel.add(getCacheFolderButton(), at(2, 3, 1));
+		contentPanel.add(new JLabel("Cache folder"), at(0, 4, 1));
+		contentPanel.add(getCacheFolderTextField(), at(1, 4, 1));
+		contentPanel.add(getCacheFolderButton(), at(2, 4, 1));
 
-		JLabel sourcesLabel = new JLabel("Sources, in the order they are tried — drag to reorder");
-		contentPanel.add(sourcesLabel, at(0, 4, 3));
+		contentPanel.add(getShowLegendCheckBox(), at(0, 5, 3));
+
+		JLabel sourcesLabel = new JLabel("<html>Sources, in the order they are tried — drag to reorder."
+				+ "<br><small>The two volume servers can send just a box around the interacting atoms; "
+				+ "the others only whole maps.</small></html>");
+		contentPanel.add(sourcesLabel, at(0, 6, 3));
 
 		JTabbedPane tabs = new JTabbedPane();
 		xraySources = new SourceListPanel(SettingsManager.parseSourceChain(
@@ -106,7 +113,7 @@ public class DensityOptionsDialogue extends JDialog {
 				DensityMapCache.DEFAULT_EM_SOURCE_CHAIN);
 		tabs.addTab("X-ray", xraySources);
 		tabs.addTab("cryo-EM", emSources);
-		contentPanel.add(tabs, at(0, 5, 3));
+		contentPanel.add(tabs, at(0, 7, 3));
 
 		JPanel buttonPane = new JPanel();
 		buttonPane.setLayout(new FlowLayout(FlowLayout.RIGHT));
@@ -161,6 +168,31 @@ public class DensityOptionsDialogue extends JDialog {
 					+ "Contouring a whole map can take long enough to look like a freeze.");
 		}
 		return radiusSpinner;
+	}
+
+	private JSpinner getMaxDownloadSpinner() {
+		if (maxDownloadSpinner == null) {
+			maxDownloadSpinner = new JSpinner(new SpinnerNumberModel(
+					settingsManager.getDensityMaxDownloadMB(), 1, 8192, 16));
+			maxDownloadSpinner.setName("maxDownloadSpinner");
+			maxDownloadSpinner.setToolTipText("A map larger than this is refused before it is "
+					+ "downloaded. It matters most for cryo-EM: a box is tens of kilobytes, but a "
+					+ "full EMDB map can be hundreds of megabytes.");
+		}
+		return maxDownloadSpinner;
+	}
+
+	/**
+	 * The way back for the key under the structures list, which can be closed from the list
+	 * itself. Without this there would be no way to bring it back.
+	 */
+	private JCheckBox getShowLegendCheckBox() {
+		if (showLegendCheckBox == null) {
+			showLegendCheckBox = new JCheckBox("Show the marker key under the structures list");
+			showLegendCheckBox.setName("showLegendCheckBox");
+			showLegendCheckBox.setSelected(settingsManager.isShowDensityLegend());
+		}
+		return showLegendCheckBox;
 	}
 
 	private JTextField getCacheFolderTextField() {
@@ -245,6 +277,8 @@ public class DensityOptionsDialogue extends JDialog {
 		settingsManager.setDensityMapKind(KIND_TOKENS[getKindComboBox().getSelectedIndex()]);
 		settingsManager.setDensityContourSigma(((Number) getContourSpinner().getValue()).doubleValue());
 		settingsManager.setDensityClipRadius(((Number) getRadiusSpinner().getValue()).doubleValue());
+		settingsManager.setDensityMaxDownloadMB(((Number) getMaxDownloadSpinner().getValue()).intValue());
+		settingsManager.setShowDensityLegend(getShowLegendCheckBox().isSelected());
 		settingsManager.setDensityCacheFolder(getCacheFolderTextField().getText());
 		settingsManager.setDensityXraySources(SettingsManager.formatSourceChain(xraySources.enabledSources()));
 		settingsManager.setDensityEmSources(SettingsManager.formatSourceChain(emSources.enabledSources()));
@@ -255,6 +289,8 @@ public class DensityOptionsDialogue extends JDialog {
 		getKindComboBox().setSelectedIndex(indexOfToken(SettingsManager.DEFAULT_DENSITY_MAP_KIND));
 		getContourSpinner().setValue(Double.valueOf(SettingsManager.DEFAULT_DENSITY_CONTOUR_SIGMA));
 		getRadiusSpinner().setValue(Double.valueOf(SettingsManager.DEFAULT_DENSITY_CLIP_RADIUS));
+		getMaxDownloadSpinner().setValue(Integer.valueOf(SettingsManager.DEFAULT_DENSITY_MAX_DOWNLOAD_MB));
+		getShowLegendCheckBox().setSelected(SettingsManager.DEFAULT_SHOW_DENSITY_LEGEND);
 		getCacheFolderTextField().setText(SettingsManager.DEFAULT_DENSITY_CACHE_FOLDER);
 		xraySources.restoreDefaults();
 		emSources.restoreDefaults();

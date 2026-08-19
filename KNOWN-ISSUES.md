@@ -4,62 +4,43 @@ Things found while working on the code that are worth fixing, but were out of sc
 time. None are urgent. Each says what is wrong, where, and why it has not been fixed yet, so
 that the next person to trip over one recognises it instead of rediscovering it.
 
-## Settings have no single source of truth
+## Settings: where a default lives
 
-A default currently lives in up to three places at once, and nothing keeps them agreeing:
+Every setting's default is now a `DEFAULT_*` constant on `SettingsManager`, and nowhere else.
+`loadSettings()` falls back to it when a key is absent, and the "Restore defaults" buttons reset
+to it. The bundled `res/CrossLinX_settings.ini` used to carry a second copy of some defaults,
+which could drift from the code silently; it now carries only `PdbFolder` and `HomeFolder`,
+which stay there as plain strings because a path is the one setting a constant cannot guess for
+someone else's machine.
 
-| source | example | when it wins |
-|---|---|---|
-| bundled `res/CrossLinX_settings.ini` | `domainEnabled=true` | only when no file exists in the working directory — it is read through `ClassLoader.getSystemResourceAsStream` |
-| hard-coded fallback in `SettingsManager.loadSettings()` | `readBooleanProperty(props, KEY, true)` | when the file exists but lacks that key |
-| `./CrossLinX_settings.ini` | whatever the user last saved | whenever it is present |
+**What is still worth doing:**
 
-Two further splits compound it:
-
+- The settings file is resolved relative to the working directory, so which one wins depends on
+  where the application was launched from. A fixed per-user location would be better.
 - `pdbFilePath`, `fetchBehavior` and `fileFormat` are not `SettingsManager` fields at all. They
   live on the BioJava `UserConfiguration`, which is why `setPdbFilePath` **must** be called
-  first — it *constructs* that object, and every later setter dereferences it.
-- The command line writes in through a fourth path (`ProteinParser.main`).
-
-And the settings file is resolved relative to the working directory, so which one wins depends
-on where the application was launched from.
-
-The consequences are that the bundled ini and the code fallbacks are independent copies which
-can drift apart silently; that adding a setting means touching four places; and that "restore
-defaults" has no single authority to reset *to*.
-
-The density settings added in 0.9 start the way the rest should end up: every one has a
-`DEFAULT_*` constant on `SettingsManager`, and both `loadSettings()` and the Restore defaults
-buttons read from it.
-
-**Worth doing:** make the `DEFAULT_*` constants the only authority; generate the bundled ini
-from them or delete it, since the fallbacks already cover a missing file; resolve the settings
-file to a fixed per-user location instead of the working directory; and move the three
-`UserConfiguration`-held values behind ordinary fields.
+  first — it *constructs* that object, and every later setter dereferences it. Moving them
+  behind ordinary fields would remove that ordering trap.
+- The command line writes settings in through a fourth path (`ProteinParser.main`).
 
 ## Settings that are not honoured
 
-| setting | what actually happens |
-|---|---|
-| `autoFetch` ("Autofetch Files") | **Inert after start-up.** Both places that would apply it are commented out — `ProteinParser` (`atomCache.setFetchBehavior`) and `ResultManager.getStructureById` (`fileReader.setFetchBehavior`). It reaches `AtomCache` only because the constructor copies `UserConfiguration` once, so changing the checkbox has no effect for the rest of the session, and the viewer's own structure loading ignores it entirely. |
-| `fileFormat` | Honoured live by `ResultManager`, which builds a fresh reader per call, but never re-pushed into `AtomCache` — there is no `setFiletype` in `refreshSettings()`. Same start-up-only shape as `autoFetch`. |
-| `domainEnabled` ("enable viewing domains") | **Fully inert.** Persisted and restored correctly, but its only reader is a commented-out line inside the commented-out, `@deprecated` `ResultManager.generateJMolScriptString`. The checkbox does nothing at all. |
+None remain. `autoFetch` and `fileFormat` used to apply only at start-up, because `AtomCache`
+is built once in a field initialiser and copies its configuration by value while the two lines
+that would have pushed later changes back sat commented out. Both are now re-applied in
+`ProteinParser.refreshSettings()`, and `ResultManager.getStructureById` sets the fetch
+behaviour on the reader it builds. `HonouredSettingsTest` guards them by asking the loader what
+it holds after a refresh rather than asking the settings object what it was told.
 
-The density settings deliberately avoid repeating this: `DensityService.newCache` is built per
-fetch from the live settings rather than once at start-up, and `ParsingUI.refreshSettings()`
-re-applies them to the structure already on screen.
+`domainEnabled` was removed rather than fixed: nothing read it, and the feature behind it - a
+per-structure domain drawn as a sphere - had been commented out and `@deprecated` for years.
+Its checkbox now carries "Halo the picked interaction" instead.
 
-## wwPDB map coefficients cannot be displayed
-
-`DensityMapSource.WWPDB_MAP_COEFFICIENTS` serves structure-factor amplitudes and phases rather
-than a sampled grid, so Jmol draws nothing from it. Every fetch therefore asks for renderable
-formats only, and the source is listed but greyed out in the density options.
-
-Converting one needs a Fourier transform, which BioJava does not implement.
-
-**Worth doing:** detect `gemmi` on the `PATH`, run `gemmi sf2map` into the density cache, and
-enable the source when the conversion is available. CCP4's `cif2mtz` followed by `fft` is the
-alternative. Until then the other sources cover every entry that has a grid at all.
+**Left behind deliberately:** `encodeDrawSphereCommand`, `decodeDrawSphereCommand` and
+`generateDrawEllipsoidCommand` are live methods with no callers, the remains of that feature.
+They are harmless and reusable Jmol command builders, so they were not deleted with the
+setting. Reviving domains would mean widening `encodeDrawSphereCommand`'s format from
+centre-and-radius to three axis vectors, since it cannot express an anisotropic shape.
 
 ## A whole-cell map need not cover the cross-links
 

@@ -13,6 +13,7 @@ import java.util.Properties;
 import org.biojava.nbio.core.util.FileDownloadUtils;
 import org.biojava.nbio.structure.align.util.UserConfiguration;
 import org.biojava.nbio.structure.io.LocalPDBDirectory.FetchBehavior;
+import org.biojava.nbio.structure.io.StructureFiletype;
 import org.biojava.nbio.structure.io.density.DensityMapSource;
 
 /**
@@ -22,12 +23,18 @@ import org.biojava.nbio.structure.io.density.DensityMapSource;
  * The ID is one of static Strings.
  * <p>
  * Newly added property should have an ID, added in {@link #loadSettings()} and {@link #saveSettings()}
+ * <p>
+ * Every setting's default is a {@code DEFAULT_*} constant here, and nowhere else. That is the
+ * one authority: {@link #loadSettings()} falls back to it when a key is absent, and the
+ * "Restore defaults" buttons reset to it. The bundled {@code res/CrossLinX_settings.ini} used
+ * to carry a second copy of some of them, which could drift; it now carries only the two
+ * folders, which are the one kind of setting a constant cannot guess for another machine.
  */
 public class SettingsManager{
 
 	private static final String PDB_FILES_FOLDER_KEY = "PdbFolder";
 	private static final String WORKING_FOLDER_KEY = "HomeFolder";
-	private static final String DOMAIN_ENABLED_KEY = "domainEnabled";
+	private static final String SHOW_SELECTION_HALOS_KEY = "showSelectionHalos";
 	private static final String AUTOFETCH_KEY = "autoFetch";
 	private static final String FILEFORMAT_KEY = "fileFormat";
 	private static final String SHOW_WHILE_PROCESSING_KEY = "showWhileProcessing";
@@ -37,6 +44,8 @@ public class SettingsManager{
 	private static final String DENSITY_MAP_KIND_KEY = "densityMapKind";
 	private static final String DENSITY_CONTOUR_SIGMA_KEY = "densityContourSigma";
 	private static final String DENSITY_CLIP_RADIUS_KEY = "densityClipRadius";
+	private static final String DENSITY_MAX_DOWNLOAD_MB_KEY = "densityMaxDownloadMB";
+	private static final String SHOW_DENSITY_LEGEND_KEY = "showDensityLegend";
 	private static final String DENSITY_CACHE_FOLDER_KEY = "densityCacheFolder";
 	private static final String DENSITY_XRAY_SOURCES_KEY = "densityXraySources";
 	private static final String DENSITY_EM_SOURCES_KEY = "densityEmSources";
@@ -51,6 +60,27 @@ public class SettingsManager{
 	 * the drift described in KNOWN-ISSUES.md. New settings start the way the old ones
 	 * should end up.
 	 */
+	/**
+	 * Whether a structure is shown in the viewer as it is parsed. Slower, but it is how the
+	 * user watches a run rather than waiting for it.
+	 */
+	public static final boolean DEFAULT_SHOW_WHILE_PROCESSING = true;
+	/** One model of an ensemble at a time; see {@link #isShowOnlySelectedModel()}. */
+	public static final boolean DEFAULT_SHOW_ONLY_SELECTED_MODEL = true;
+	/** Coordinate files may be downloaded when they are not in the local store. */
+	public static final boolean DEFAULT_AUTO_FETCH = true;
+	/** mmCIF, the only format besides PDB that the file-listing code understands. */
+	public static final String DEFAULT_FILE_FORMAT = UserConfiguration.MMCIF_FORMAT;
+	/**
+	 * The two folders keep String defaults rather than being derived, because a path is the
+	 * one kind of setting a constant cannot sensibly guess for someone else's machine. They
+	 * are also the only two the bundled {@code res/CrossLinX_settings.ini} still carries, for
+	 * exactly that reason: everything else now has a default here instead.
+	 */
+	public static final String DEFAULT_PDB_FOLDER = "./";
+	public static final String DEFAULT_WORKING_FOLDER = "~/";
+	/** Halos are the default marking; see {@link #isShowSelectionHalos()}. */
+	public static final boolean DEFAULT_SHOW_SELECTION_HALOS = true;
 	public static final boolean DEFAULT_SHOW_ELECTRON_DENSITY = true;
 	/** Off: showing a cached map costs nothing, downloading one is the user's decision. */
 	public static final boolean DEFAULT_AUTOFETCH_ELECTRON_DENSITY = false;
@@ -58,6 +88,14 @@ public class SettingsManager{
 	public static final double DEFAULT_DENSITY_CONTOUR_SIGMA = 1.0;
 	/** Angstroms around the interacting atoms; see ParsingUI's density fetch. */
 	public static final double DEFAULT_DENSITY_CLIP_RADIUS = 5.0;
+	/**
+	 * Ceiling on a single map download, in megabytes. 256 matches BioJava's own default.
+	 * It matters most for cryo-EM: a box request is tens of kilobytes, but an EMDB primary
+	 * map can run to well over a hundred megabytes.
+	 */
+	public static final int DEFAULT_DENSITY_MAX_DOWNLOAD_MB = 256;
+	/** The legend under the structures list starts visible; the user can close it. */
+	public static final boolean DEFAULT_SHOW_DENSITY_LEGEND = true;
 	/** Empty means "the BioJava cache folder", which sits beside the PDB store. */
 	public static final String DEFAULT_DENSITY_CACHE_FOLDER = "";
 	/** Empty means "whatever chain BioJava ships", rather than a list frozen at build time. */
@@ -73,7 +111,7 @@ public class SettingsManager{
 	private static SettingsManager settingsManager = null;
 	private UserConfiguration userConfiguration = null; //new UserConfiguration();
 	private String workingFolder;
-	private boolean domainEnabled;
+	private boolean showSelectionHalos;
 
 	private boolean showWhileProcessing;
 
@@ -84,6 +122,8 @@ public class SettingsManager{
 	private String densityMapKind;
 	private double densityContourSigma;
 	private double densityClipRadius;
+	private int densityMaxDownloadMB;
+	private boolean showDensityLegend;
 	private String densityCacheFolder;
 	private String densityXraySources;
 	private String densityEmSources;
@@ -102,7 +142,7 @@ public class SettingsManager{
 			}
 
 			properties.load(res);
-			String pdbFilePath = readStringProperty(properties, PDB_FILES_FOLDER_KEY, null);
+			String pdbFilePath = readStringProperty(properties, PDB_FILES_FOLDER_KEY, DEFAULT_PDB_FOLDER);
 			if (pdbFilePath != null) {
 				pdbFilePath = FileDownloadUtils.expandUserHome(pdbFilePath);
 //				userConfiguration.setPdbFilePath(pdbFilePath);
@@ -114,7 +154,7 @@ public class SettingsManager{
 				userConfiguration = new UserConfiguration();
 				pdbFilePath = userConfiguration.getPdbFilePath();
 			}
-			String workingFilePath = readStringProperty(properties, WORKING_FOLDER_KEY, null);
+			String workingFilePath = readStringProperty(properties, WORKING_FOLDER_KEY, DEFAULT_WORKING_FOLDER);
 			if (workingFilePath != null) {
 				workingFilePath = FileDownloadUtils.expandUserHome(workingFilePath);
 				this.workingFolder = workingFilePath;
@@ -123,17 +163,19 @@ public class SettingsManager{
 			}
 			
 //			this.setFileFormat(readStringProperty(properties, FILEFORMAT_KEY, UserConfiguration.PDB_FORMAT));
-			this.setFileFormat(readStringProperty(properties, FILEFORMAT_KEY, UserConfiguration.MMCIF_FORMAT));
-			this.setAutoFetch(readBooleanProperty(properties, AUTOFETCH_KEY, this.userConfiguration.getFetchBehavior() != FetchBehavior.LOCAL_ONLY));
-			this.setShowWhileProcessing(readBooleanProperty(properties, SHOW_WHILE_PROCESSING_KEY, true));
-			this.setDomainEnabled(readBooleanProperty(properties, DOMAIN_ENABLED_KEY, true));
-			this.setShowOnlySelectedModel(readBooleanProperty(properties, SHOW_ONLY_SELECTED_MODEL_KEY, true));
+			this.setFileFormat(readStringProperty(properties, FILEFORMAT_KEY, DEFAULT_FILE_FORMAT));
+			this.setAutoFetch(readBooleanProperty(properties, AUTOFETCH_KEY, DEFAULT_AUTO_FETCH));
+			this.setShowWhileProcessing(readBooleanProperty(properties, SHOW_WHILE_PROCESSING_KEY, DEFAULT_SHOW_WHILE_PROCESSING));
+			this.showSelectionHalos = readBooleanProperty(properties, SHOW_SELECTION_HALOS_KEY, DEFAULT_SHOW_SELECTION_HALOS);
+			this.setShowOnlySelectedModel(readBooleanProperty(properties, SHOW_ONLY_SELECTED_MODEL_KEY, DEFAULT_SHOW_ONLY_SELECTED_MODEL));
 
 			this.showElectronDensity = readBooleanProperty(properties, SHOW_ELECTRON_DENSITY_KEY, DEFAULT_SHOW_ELECTRON_DENSITY);
 			this.autoFetchElectronDensity = readBooleanProperty(properties, AUTOFETCH_ELECTRON_DENSITY_KEY, DEFAULT_AUTOFETCH_ELECTRON_DENSITY);
 			this.densityMapKind = readStringProperty(properties, DENSITY_MAP_KIND_KEY, DEFAULT_DENSITY_MAP_KIND);
 			this.densityContourSigma = readDoubleProperty(properties, DENSITY_CONTOUR_SIGMA_KEY, DEFAULT_DENSITY_CONTOUR_SIGMA);
 			this.densityClipRadius = readDoubleProperty(properties, DENSITY_CLIP_RADIUS_KEY, DEFAULT_DENSITY_CLIP_RADIUS);
+			this.densityMaxDownloadMB = (int) readDoubleProperty(properties, DENSITY_MAX_DOWNLOAD_MB_KEY, DEFAULT_DENSITY_MAX_DOWNLOAD_MB);
+			this.showDensityLegend = readBooleanProperty(properties, SHOW_DENSITY_LEGEND_KEY, DEFAULT_SHOW_DENSITY_LEGEND);
 			this.densityCacheFolder = readStringProperty(properties, DENSITY_CACHE_FOLDER_KEY, DEFAULT_DENSITY_CACHE_FOLDER);
 			this.densityXraySources = readStringProperty(properties, DENSITY_XRAY_SOURCES_KEY, DEFAULT_DENSITY_XRAY_SOURCES);
 			this.densityEmSources = readStringProperty(properties, DENSITY_EM_SOURCES_KEY, DEFAULT_DENSITY_EM_SOURCES);
@@ -192,13 +234,15 @@ public class SettingsManager{
 			properties.setProperty(FILEFORMAT_KEY, getFileFormat());
 			properties.setProperty(AUTOFETCH_KEY, String.valueOf(isAutoFetch()));
 			properties.setProperty(SHOW_WHILE_PROCESSING_KEY, String.valueOf(isShowWhileProcessing()));
-			properties.setProperty(DOMAIN_ENABLED_KEY, String.valueOf(isDomainEnabled()));
+			properties.setProperty(SHOW_SELECTION_HALOS_KEY, String.valueOf(isShowSelectionHalos()));
 			properties.setProperty(SHOW_ONLY_SELECTED_MODEL_KEY, String.valueOf(isShowOnlySelectedModel()));
 			properties.setProperty(SHOW_ELECTRON_DENSITY_KEY, String.valueOf(isShowElectronDensity()));
 			properties.setProperty(AUTOFETCH_ELECTRON_DENSITY_KEY, String.valueOf(isAutoFetchElectronDensity()));
 			properties.setProperty(DENSITY_MAP_KIND_KEY, getDensityMapKind());
 			properties.setProperty(DENSITY_CONTOUR_SIGMA_KEY, String.valueOf(getDensityContourSigma()));
 			properties.setProperty(DENSITY_CLIP_RADIUS_KEY, String.valueOf(getDensityClipRadius()));
+			properties.setProperty(DENSITY_MAX_DOWNLOAD_MB_KEY, String.valueOf(getDensityMaxDownloadMB()));
+			properties.setProperty(SHOW_DENSITY_LEGEND_KEY, String.valueOf(isShowDensityLegend()));
 			properties.setProperty(DENSITY_CACHE_FOLDER_KEY, getDensityCacheFolder());
 			properties.setProperty(DENSITY_XRAY_SOURCES_KEY, getDensityXraySources());
 			properties.setProperty(DENSITY_EM_SOURCES_KEY, getDensityEmSources());
@@ -291,6 +335,45 @@ public class SettingsManager{
 		userConfiguration.setFileFormat(fileFormat);
 	}
 
+	/**
+	 * The fetch behaviour "Autofetch Files" stands for, ready to push into a reader.
+	 * <p>
+	 * The setting is not stored as a field: it lives on the {@link UserConfiguration}, and
+	 * {@link #isAutoFetch()} only reports whether that is anything other than
+	 * {@link FetchBehavior#LOCAL_ONLY}. Callers that have to configure a reader need the value
+	 * itself, and previously had nothing to ask - which is a large part of why the setting went
+	 * unapplied for so long.
+	 *
+	 * @return the behaviour to give a {@code LocalPDBDirectory} or {@code AtomCache}
+	 */
+	public FetchBehavior getFetchBehavior() {
+		return userConfiguration.getFetchBehavior();
+	}
+
+	/**
+	 * The file format as BioJava's readers want it.
+	 * <p>
+	 * {@link #getFileFormat()} answers a {@link UserConfiguration} string, which is what the
+	 * settings file and the radio buttons use; {@code AtomCache.setFiletype} wants the enum.
+	 *
+	 * @return the matching {@link StructureFiletype}, defaulting to CIF for an unknown value
+	 */
+	public StructureFiletype getStructureFiletype() {
+		String format = getFileFormat();
+		if (UserConfiguration.PDB_FORMAT.equals(format)) {
+			return StructureFiletype.PDB;
+		}
+		if (UserConfiguration.BCIF_FORMAT.equals(format)) {
+			return StructureFiletype.BCIF;
+		}
+		if (UserConfiguration.MMTF_FORMAT.equals(format)) {
+			return StructureFiletype.MMTF;
+		}
+		//mmCIF is the default the application ships with, and the only other format its own
+		//file-listing code understands.
+		return StructureFiletype.CIF;
+	}
+
 	public String getFileFormat() {
 		return userConfiguration.getFileFormat();
 	}
@@ -343,12 +426,20 @@ public class SettingsManager{
 		this.showOnlySelectedModel = showOnlySelectedModel;
 	}
 
-	public boolean isDomainEnabled() {
-		return this.domainEnabled;
+	/**
+	 * Whether the picked interaction is marked with a selection halo.
+	 * <p>
+	 * When it is, the two atoms keep the size every interacting atom has - the halo is
+	 * unmistakable on its own, and enlarging them as well made them read as bigger atoms
+	 * rather than as the picked ones. When it is off, the pair is enlarged instead, because
+	 * otherwise nothing would distinguish the interaction the user just clicked.
+	 */
+	public boolean isShowSelectionHalos() {
+		return this.showSelectionHalos;
 	}
 
-	public void setDomainEnabled(boolean domainEnabled) {
-		this.domainEnabled = domainEnabled;
+	public void setShowSelectionHalos(boolean showSelectionHalos) {
+		this.showSelectionHalos = showSelectionHalos;
 	}
 
 	/**
@@ -410,6 +501,32 @@ public class SettingsManager{
 
 	public void setDensityClipRadius(double densityClipRadius) {
 		this.densityClipRadius = densityClipRadius;
+	}
+
+	/**
+	 * @return the largest single map download allowed, in megabytes. A request whose body
+	 *         would exceed this is refused rather than started.
+	 */
+	public int getDensityMaxDownloadMB() {
+		return this.densityMaxDownloadMB;
+	}
+
+	public void setDensityMaxDownloadMB(int densityMaxDownloadMB) {
+		this.densityMaxDownloadMB = densityMaxDownloadMB;
+	}
+
+	/** @return the same limit in bytes, as BioJava wants it */
+	public long getDensityMaxDownloadBytes() {
+		return this.densityMaxDownloadMB * 1024L * 1024L;
+	}
+
+	/** Whether the marker legend under the structures list is shown. */
+	public boolean isShowDensityLegend() {
+		return this.showDensityLegend;
+	}
+
+	public void setShowDensityLegend(boolean showDensityLegend) {
+		this.showDensityLegend = showDensityLegend;
 	}
 
 	/**

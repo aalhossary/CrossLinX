@@ -51,7 +51,7 @@ public class PreferencesDialogue extends JDialog {
 	private JCheckBox showWhileProcessingCheckbox;
 
 	SettingsManager settingsManager = SettingsManager.getSettingsManager();
-	private JCheckBox domainEnabledCheckBox;
+	private JCheckBox showSelectionHalosCheckBox;
 	private JCheckBox showOnlySelectedModelCheckBox;
 	private JCheckBox showElectronDensityCheckBox;
 	private JCheckBox autoFetchDensityCheckBox;
@@ -169,12 +169,12 @@ public class PreferencesDialogue extends JDialog {
 		gbc_showWhileProcessingCheckbox.gridx = 0;
 		gbc_showWhileProcessingCheckbox.gridy = 5;
 		contentPanel.add(getShowWhileProcessingCheckbox(), gbc_showWhileProcessingCheckbox);
-		GridBagConstraints gbc_domainEnabledCheckBox = new GridBagConstraints();
-		gbc_domainEnabledCheckBox.anchor = GridBagConstraints.NORTHWEST;
-		gbc_domainEnabledCheckBox.insets = new Insets(0, 0, 0, 5);
-		gbc_domainEnabledCheckBox.gridx = 0;
-		gbc_domainEnabledCheckBox.gridy = 6;
-		contentPanel.add(getDomainEnabledCheckBox(), gbc_domainEnabledCheckBox);
+		GridBagConstraints gbc_showSelectionHalosCheckBox = new GridBagConstraints();
+		gbc_showSelectionHalosCheckBox.anchor = GridBagConstraints.NORTHWEST;
+		gbc_showSelectionHalosCheckBox.insets = new Insets(0, 0, 0, 5);
+		gbc_showSelectionHalosCheckBox.gridx = 0;
+		gbc_showSelectionHalosCheckBox.gridy = 6;
+		contentPanel.add(getShowSelectionHalosCheckBox(), gbc_showSelectionHalosCheckBox);
 		GridBagConstraints gbc_showOnlySelectedModelCheckBox = new GridBagConstraints();
 		gbc_showOnlySelectedModelCheckBox.anchor = GridBagConstraints.NORTHWEST;
 		gbc_showOnlySelectedModelCheckBox.insets = new Insets(0, 0, 0, 5);
@@ -241,7 +241,7 @@ public class PreferencesDialogue extends JDialog {
 						settingsManager.setFileFormat(fileFormat);
 						settingsManager.setAutoFetch(autofetchCheckbox.isSelected());
 						settingsManager.setShowWhileProcessing(showWhileProcessingCheckbox.isSelected());
-						settingsManager.setDomainEnabled(domainEnabledCheckBox.isSelected());
+						settingsManager.setShowSelectionHalos(showSelectionHalosCheckBox.isSelected());
 						settingsManager.setShowOnlySelectedModel(showOnlySelectedModelCheckBox.isSelected());
 						settingsManager.setShowElectronDensity(showElectronDensityCheckBox.isSelected());
 						settingsManager.setAutoFetchElectronDensity(autoFetchDensityCheckBox.isSelected());
@@ -373,13 +373,16 @@ public class PreferencesDialogue extends JDialog {
 		}
 		return showOnlySelectedModelCheckBox;
 	}
-	private JCheckBox getDomainEnabledCheckBox() {
-		if (domainEnabledCheckBox == null) {
-			domainEnabledCheckBox = new JCheckBox("enable viewing domains");
-			domainEnabledCheckBox.setSelected(settingsManager.isDomainEnabled());
-			domainEnabledCheckBox.setName("domainEnabledCheckBox");
+	private JCheckBox getShowSelectionHalosCheckBox() {
+		if (showSelectionHalosCheckBox == null) {
+			showSelectionHalosCheckBox = new JCheckBox("Halo the picked interaction");
+			showSelectionHalosCheckBox.setToolTipText("Ring the two atoms of the interaction "
+					+ "picked in the list. With this off they are enlarged instead, so the pick "
+					+ "is still visible.");
+			showSelectionHalosCheckBox.setSelected(settingsManager.isShowSelectionHalos());
+			showSelectionHalosCheckBox.setName("showSelectionHalosCheckBox");
 		}
-		return domainEnabledCheckBox;
+		return showSelectionHalosCheckBox;
 	}
 
 	private JCheckBox getShowElectronDensityCheckBox() {
@@ -442,6 +445,7 @@ public class PreferencesDialogue extends JDialog {
 
 	/** Package-private so a test can drive it without synthesising a click. */
 	void restoreDefaults() {
+		getShowSelectionHalosCheckBox().setSelected(SettingsManager.DEFAULT_SHOW_SELECTION_HALOS);
 		getShowElectronDensityCheckBox().setSelected(SettingsManager.DEFAULT_SHOW_ELECTRON_DENSITY);
 		getAutoFetchDensityCheckBox().setSelected(SettingsManager.DEFAULT_AUTOFETCH_ELECTRON_DENSITY);
 	}

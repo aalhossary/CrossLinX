@@ -2,13 +2,17 @@ package amralhossary.bonds;
 
 import java.io.File;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import org.biojava.nbio.structure.ExperimentalTechnique;
 import org.biojava.nbio.structure.PDBHeader;
+import org.biojava.nbio.structure.PdbId;
 import org.biojava.nbio.structure.Structure;
 import org.biojava.nbio.structure.align.gui.jmol.JmolPanel;
 import org.biojava.nbio.structure.io.LocalPDBDirectory.FetchBehavior;
+import org.biojava.nbio.structure.io.density.DensityCacheLayout;
+import org.biojava.nbio.structure.io.density.DensityFileFormat;
 import org.biojava.nbio.structure.io.density.DensityMapCache;
 import org.biojava.nbio.structure.io.density.DensityMapKind;
 import org.biojava.nbio.structure.io.density.DensityMapSource;
@@ -151,6 +155,7 @@ public class DensityService {
 		cache.setSourceChain(DensityMapKind.TWO_FO_FC, xray);
 		cache.setSourceChain(DensityMapKind.FO_FC, xray);
 		cache.setSourceChain(DensityMapKind.EM, em);
+		cache.setMaxDownloadBytes(settings.getDensityMaxDownloadBytes());
 
 		return cache;
 	}
@@ -161,37 +166,89 @@ public class DensityService {
 	}
 
 	/**
-	 * Whether Jmol can fetch this kind of map itself.
+	 * Which sources can serve a box around a region rather than a whole unit cell.
 	 * <p>
-	 * Jmol has {@code eds} and {@code edsdiff} keywords, which resolve through the PDBe
-	 * density server, but nothing equivalent for a cryo-EM map - and an EM map wants its
-	 * depositors' contour level, which only the BioJava path knows. So EM stays on that path.
+	 * This is the difference that decides whether a cross-link at a crystal contact gets any
+	 * density at all: a whole-cell map runs from the origin, and coordinates outside that box
+	 * have nothing to draw. Only the two Mol* volume servers understand a box request; PDBe's
+	 * pre-computed CCP4 files and the wwPDB coefficients are whole-cell only.
 	 */
-	public static boolean hasJmolEdsKeyword(DensityMapKind kind) {
-		return kind == DensityMapKind.TWO_FO_FC || kind == DensityMapKind.FO_FC
-				|| kind == DensityMapKind.AUTO;
+	public static boolean servesBox(DensityMapSource source) {
+		return source == DensityMapSource.RCSB_VOLUME_SERVER
+				|| source == DensityMapSource.PDBE_VOLUME_SERVER;
 	}
 
-	/** @return the Jmol keyword that fetches this kind: {@code eds} or {@code edsdiff} */
-	public static String jmolEdsKeyword(DensityMapKind kind) {
-		return kind == DensityMapKind.FO_FC ? "edsdiff" : "eds";
+	/** @return the base URL of a volume server, or null if that source is not one */
+	public static String volumeServerBase(DensityMapSource source) {
+		if (source == DensityMapSource.RCSB_VOLUME_SERVER) {
+			return "https://maps.rcsb.org/";
+		}
+		if (source == DensityMapSource.PDBE_VOLUME_SERVER) {
+			return "https://www.ebi.ac.uk/pdbe/volume-server/";
+		}
+		return null;
+	}
+
+	/** The sampling detail asked of a volume server; see the note on the cache qualifier. */
+	public static final int BOX_DETAIL = 3;
+
+	/**
+	 * Builds a box request around a region, in Angstroms.
+	 * <p>
+	 * The corners are Cartesian and may be negative: the server resolves them against the
+	 * crystal symmetry itself, which is exactly why this works where a whole-cell map does not.
+	 * Verified on 3ALB, whose cross-links all sit at negative z - 59,797 bytes here against
+	 * 5,416,411 for the same entry's cell.
+	 *
+	 * @param source the volume server to ask
+	 * @param pdbId the entry
+	 * @param min lower corner
+	 * @param max upper corner
+	 * @return the URL, or null if this source cannot serve a box
+	 */
+	public static String boxUrl(DensityMapSource source, PdbId pdbId, double[] min, double[] max) {
+		String base = volumeServerBase(source);
+		if (base == null) {
+			return null;
+		}
+		return String.format(Locale.US,
+				"%sx-ray/%s/box/%.3f,%.3f,%.3f/%.3f,%.3f,%.3f?detail=%d&space=cartesian&encoding=bcif",
+				base, pdbId.getId().toLowerCase(),
+				min[0], min[1], min[2], max[0], max[1], max[2], BOX_DETAIL);
 	}
 
 	/**
-	 * @return the isosurface id to draw under - deliberately the same ids
-	 *         {@code JmolPanel.clearDensityMaps()} removes, so both routes clean up after
-	 *         each other
+	 * Where a box map is cached.
+	 * <p>
+	 * The qualifier carries the clip radius and the detail level, because both change what was
+	 * downloaded. The region itself needs no part in the key: it is always the bounding box of
+	 * every interacting atom of the structure, so for a given entry and radius it is the same
+	 * box every time. That is what makes caching a box tractable here - there is no need to ask
+	 * whether some previously cached box happens to contain the one now wanted.
+	 *
+	 * @param settings for the cache folder
+	 * @param pdbId the entry
+	 * @param kind the map kind
+	 * @param source the volume server it came from
+	 * @param radius the clip radius the box was built with
+	 * @return the file, which need not exist
 	 */
-	public static String jmolIsosurfaceId(DensityMapKind kind) {
-		return kind == DensityMapKind.FO_FC ? JmolPanel.ISOSURFACE_ID_FOFC
-				: JmolPanel.ISOSURFACE_ID_2FOFC;
+	public static File boxCacheFile(SettingsManager settings, PdbId pdbId, DensityMapKind kind,
+			DensityMapSource source, double radius) {
+		File root = cacheRoot(settings);
+		String qualifier = String.format(Locale.US, "box-r%.1f-d%d", radius, BOX_DETAIL);
+		return DensityCacheLayout.pdbMapFile(root, pdbId, kindToken(kind), source,
+				DensityFileFormat.BCIF_VOLUME, qualifier);
 	}
 
 	/**
-	 * @return how to colour it: one signed red/green surface for a difference map, plain blue
-	 *         otherwise, matching what {@code JmolPanel.loadDensityMap} draws
+	 * A density-server response carries both the 2Fo-Fc and the Fo-Fc blocks in one file, so
+	 * the two kinds share a cache entry rather than downloading the same bytes twice. This
+	 * mirrors what BioJava's own volume-server provider does.
 	 */
-	public static String jmolColouring(DensityMapKind kind) {
-		return kind == DensityMapKind.FO_FC ? "sign red green" : "color blue";
+	private static String kindToken(DensityMapKind kind) {
+		return (kind == DensityMapKind.TWO_FO_FC || kind == DensityMapKind.FO_FC)
+				? DensityCacheLayout.BOTH_KINDS_TOKEN
+				: kind.getFileToken();
 	}
 }

@@ -473,8 +473,13 @@ public class ProteinParser implements SettingListener{
 		String path=settingsManager.getPdbFilePath();
 		if(path != null)
 			atomCache.setPath(path);
-//		pdbreader.setAutoFetch(true);
-//		atomCache.setFetchBehavior(settingsManager.getFetchBehavior());
+		//The AtomCache is built once, in a field initialiser, and copies the UserConfiguration
+		//by value. Without pushing these back on every settings change, "Autofetch Files" and
+		//the file format would apply only to whatever they happened to be at start-up - which
+		//is exactly what they did for a long time, both lines having been left commented out.
+		atomCache.setFetchBehavior(settingsManager.getFetchBehavior());
+		atomCache.setFiletype(settingsManager.getStructureFiletype());
+
 		
 		parameters.setAlignSeqRes(true);
 		parameters.setHeaderOnly(false);
