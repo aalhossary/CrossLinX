@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>net.sourceforge.jmol</groupId>
+	<artifactId>jmol</artifactId>
+	<version>16.4.23</version>
+	<packaging>jar</packaging>
+	<name>Jmol 16.4.23</name>
+	<description>The official Jmol 16.4.23 release (2026-08-27) from
+		https://jmol.sourceforge.net, unmodified. Vendored only because Jmol
+		publishes nothing to Maven Central beyond 14.31.10 (2020); see
+		https://sourceforge.net/p/jmol/bugs/635/. This replaces the previously
+		vendored 16.4.1-threadsafe-1: the thread-safety fix we carried as a local
+		patch was taken upstream by the Jmol author and shipped in 16.4.21, so no
+		patching remains. Jmol.jar is self-contained, so no dependencies are
+		declared: the descriptor carried inside the jar is the shaded jna-inchi
+		pom and must not be used.</description>
+	<url>https://jmol.sourceforge.net</url>
+	<licenses>
+		<license>
+			<name>GNU LGPL v2.1</name>
+			<url>https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+</project>

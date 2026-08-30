@@ -10,8 +10,8 @@
 		     ~/.m2 only, so a clean clone elsewhere will not build; pin the release as
 		     soon as it ships. -->
 		<biojava.version>7.3.0-SNAPSHOT</biojava.version>
-		<!-- Jmol 16.4.1 plus our thread-safety patch; see jmol-patch/README.md -->
-		<jmol.version>16.4.1-threadsafe-1</jmol.version>
+		<!-- Stock Jmol. 16.4.21 took our thread-safety fix upstream, so no patch. -->
+		<jmol.version>16.4.23</jmol.version>
 	</properties>
 	<repositories>
 		<repository>
@@ -79,12 +79,15 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
-		<!-- Vendored in local-maven-repo: Jmol is not on Maven Central beyond
-		     14.31.10 (2020), and this build additionally carries our
-		     thread-safety patch, reported upstream as
-		     https://sourceforge.net/p/jmol/bugs/640/. Drop the vendored
-		     artifact and depend on an official release once the fix ships.
-		     jmol-patch/README.md explains how the jar is rebuilt. -->
+		<!-- The official release, unmodified, vendored in local-maven-repo purely
+		     because Jmol publishes nothing to Maven Central beyond 14.31.10
+		     (2020) - nothing at all across 15.x and 16.x - so there is no
+		     coordinate to depend on. See https://sourceforge.net/p/jmol/bugs/635/.
+		     This was a patched build until 16.4.21: the thread-safety fix we
+		     carried locally (https://sourceforge.net/p/jmol/bugs/640/) was taken
+		     upstream by the Jmol author, so the patch is gone and only the
+		     vendoring remains. To move to a newer Jmol, drop its Jmol.jar into
+		     local-maven-repo beside this one and bump jmol.version. -->
 		<dependency>
 			<groupId>net.sourceforge.jmol</groupId>
 			<artifactId>jmol</artifactId>
