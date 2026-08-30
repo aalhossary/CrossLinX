@@ -1042,6 +1042,8 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 	}
 	
 	public void openPdbIdInFGJM(final PdbId pdbId) {
+		//Plain http on purpose: firstglance.jmol.org serves nothing on 443, so an https URL
+		//does not fail fast, it hangs until the connection times out.
 		String url = "http://firstglance.jmol.org/fg.htm?mol="+pdbId;
 		try {
 			Desktop.getDesktop().browse(new URI(url));

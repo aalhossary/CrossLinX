@@ -178,7 +178,18 @@ public class DensityService {
 				|| source == DensityMapSource.PDBE_VOLUME_SERVER;
 	}
 
-	/** @return the base URL of a volume server, or null if that source is not one */
+	/**
+	 * @return the base URL of a volume server, or null if that source is not one
+	 *         <p>
+	 *         These URLs address an entry by identifier, so unlike a path built from the
+	 *         archive's directory layout they are unaffected by the July 2027 move. One
+	 *         limitation is worth recording, because it is not ours to fix: both servers
+	 *         accept the four-character spelling only. <code>pdb_00001cbs</code> returns 404
+	 *         from RCSB and from PDBe alike, checked against both. Every entry that exists
+	 *         today has a short form, so nothing is affected now; entries deposited once that
+	 *         space is exhausted will have none, and will need the servers to accept the
+	 *         extended spelling before a box can be asked for at all.
+	 */
 	public static String volumeServerBase(DensityMapSource source) {
 		if (source == DensityMapSource.RCSB_VOLUME_SERVER) {
 			return "https://maps.rcsb.org/";

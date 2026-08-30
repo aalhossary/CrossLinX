@@ -394,26 +394,75 @@ public class ResultManager {
 
 
 
-public static File prepareFilesList(boolean temp) {
+	/** The current archive, where coordinate files sit directly under the two-character directory. */
+	private static final String DIVIDED_PDB_PATH = "data/structures/divided/pdb";
+	/** @see #DIVIDED_PDB_PATH */
+	private static final String DIVIDED_MMCIF_PATH = "data/structures/divided/mmCIF";
+	/**
+	 * The archive that replaces the divided one on 21 July 2027, in which each entry has a
+	 * directory of its own: {@code data/entries/<hash>/<extended id>/structures/}.
+	 * <p>
+	 * Supported now rather than later because a user who mirrors the beta archive today gets
+	 * the same answer from it, and because the alternative failure is silent: the divided path
+	 * would simply not exist and the scan would find nothing to do.
+	 */
+	private static final String ENTRIES_PATH = "data/entries";
+
+	/** Names in the divided archive: {@code 1abc.cif.gz}, {@code pdb1abc.ent.gz}. */
+	private static final Pattern DIVIDED_FILE_PATTERN =
+			Pattern.compile("(pdb)?(([0-9a-z]{4})?([1-9]\\p{Alnum}{3}))((\\.ent\\.gz)|(\\.cif\\.gz))",
+					Pattern.CASE_INSENSITIVE);
+	/**
+	 * Names in the per-entry archive: {@code pdb_00001abc.cif.gz}, {@code pdb_00001abc.pdb.gz}.
+	 * <p>
+	 * The extension has to be chosen here rather than by directory. The divided archive keeps
+	 * the two formats in separate trees, so picking the tree picked the format; the per-entry
+	 * archive puts every file of an entry in one directory, so only the name distinguishes
+	 * them - and an entry too large for the PDB format has no {@code .pdb.gz} at all.
+	 */
+	private static final Pattern ENTRY_MMCIF_PATTERN =
+			Pattern.compile("(pdb_\\p{Alnum}{8})\\.cif\\.gz", Pattern.CASE_INSENSITIVE);
+	/** @see #ENTRY_MMCIF_PATTERN */
+	private static final Pattern ENTRY_PDB_PATTERN =
+			Pattern.compile("(pdb_\\p{Alnum}{8})\\.pdb\\.gz", Pattern.CASE_INSENSITIVE);
+
+	/** Both archives bucket entries into directories named by two characters of the identifier. */
+	private static final FilenameFilter TWO_CHARACTER_DIRECTORIES = new FilenameFilter() {
+		public boolean accept(File dir, String name) {
+			return name.length() == 2;
+		}
+	};
+
+	/**
+	 * Writes the list of every structure in the local archive, which is what a whole-archive
+	 * scan works through.
+	 * <p>
+	 * Finding nothing is reported rather than passed on. An empty list is indistinguishable
+	 * from an archive with no cross-links once the scan has run, so a wrong folder, a wrong
+	 * format or a layout this does not recognise used to look exactly like a clean result.
+	 *
+	 * @param temp whether to write a temporary file rather than {@code FilesList.txt}
+	 * @return the list file, which is created even when it ends up empty, or <code>null</code>
+	 *         only if it could not be written at all
+	 */
+	public static File prepareFilesList(boolean temp) {
 		System.out.println("Preparing Files List");
-		Pattern fileNamePattern = Pattern.compile("(pdb)?(([0-9a-z]{4})?([1-9]\\p{Alnum}{3}))((\\.ent\\.gz)|(\\.cif\\.gz))", Pattern.CASE_INSENSITIVE);
-//		Pattern fileNamePattern = Pattern.compile("(([0-9a-z]{4})?([1-9]\\p{Alnum}{3}))", Pattern.CASE_INSENSITIVE);
+		PrintStream out = null;
 		try {
-			String filesPath = null;
-			if(UserConfiguration.PDB_FORMAT.equals(settingsManager.getFileFormat()))
-				filesPath = "data/structures/divided/pdb";
-			else if (UserConfiguration.MMCIF_FORMAT.equals(settingsManager.getFileFormat()))
-				filesPath = "data/structures/divided/mmCIF";
-			else
+			boolean pdbFormat = UserConfiguration.PDB_FORMAT.equals(settingsManager.getFileFormat());
+			if (! pdbFormat && ! UserConfiguration.MMCIF_FORMAT.equals(settingsManager.getFileFormat())) {
 				throw new IllegalArgumentException("Unknown File Format ["+ settingsManager.getFileFormat() + "]");
-			File pdbFolder= new File(settingsManager.getPdbFilePath(), filesPath);			
-			System.out.println("creating list for: "+pdbFolder.getAbsolutePath());
-			File[] potentialFolders = pdbFolder.listFiles(new FilenameFilter() {
-				public boolean accept(File dir, String name) {
-					return name.length()==2;
-				}
-			});
-			Arrays.sort(potentialFolders);
+			}
+			File root = new File(settingsManager.getPdbFilePath());
+			File divided = new File(root, pdbFormat ? DIVIDED_PDB_PATH : DIVIDED_MMCIF_PATH);
+			File entries = new File(root, ENTRIES_PATH);
+			//The divided archive wins while it exists, so a mirror holding both is read the way
+			//it always was; the per-entry one is the fallback rather than the other way round.
+			boolean perEntry = ! divided.isDirectory() && entries.isDirectory();
+			File archive = perEntry ? entries : divided;
+			System.out.println("creating list for: " + archive.getAbsolutePath()
+					+ (perEntry ? "   (per-entry layout)" : ""));
+
 			File list;
 			if (temp) {
 				list = File.createTempFile("FilesList", null, new File(settingsManager.getWorkingFolder()));
@@ -421,43 +470,108 @@ public static File prepareFilesList(boolean temp) {
 			} else {
 				list = new File(settingsManager.getWorkingFolder(), "FilesList.txt");
 			}
-			FilenameFilter filter = new FilenameFilter() {
-				@Override
-				public boolean accept(File dir, String name) {
-					return fileNamePattern.matcher(name).matches();
-				}
-			};
-			PrintStream out = new PrintStream(list);
-			for (int i = 0; ProteinParser.moreWork && i < potentialFolders.length; i++) {
-				File potentialFolder = potentialFolders[i];
-				if (potentialFolder.isDirectory()) {
-					String[] potentialFileNames = potentialFolder.list(filter);
-					if (potentialFileNames.length>0) {
-						out       .println("##Folder :"+potentialFolder.getName());
-						System.out.println("##Folder :"+potentialFolder.getName());
-						Arrays.sort(potentialFileNames);
-						for (int j = 0; j < potentialFileNames.length; j++) {
-							String potentialFileName = potentialFileNames[j];
-							Matcher matcher = fileNamePattern.matcher(potentialFileName);
-							if(matcher.find()) {
-								out.print(matcher.group(2));
-								if (j < potentialFileNames.length-1) {
-									out.print(';');
-								}else {
-									out.println();
-								}
-							}
+			out = new PrintStream(list);
+
+			int written = 0;
+			File[] hashFolders = archive.listFiles(TWO_CHARACTER_DIRECTORIES);
+			if (hashFolders == null) {
+				System.err.println("No structure archive at " + archive.getAbsolutePath());
+				System.err.println("  Looked for the divided layout at " + divided.getAbsolutePath());
+				System.err.println("  and the per-entry layout at      " + entries.getAbsolutePath());
+				System.err.println("  Check the PDB folder and file format in Preferences.");
+			} else {
+				Arrays.sort(hashFolders);
+				for (int i = 0; ProteinParser.moreWork && i < hashFolders.length; i++) {
+					File hashFolder = hashFolders[i];
+					if (! hashFolder.isDirectory()) {
+						continue;
+					}
+					List<String> ids = perEntry
+							? idsInEntryDirectories(hashFolder, pdbFormat)
+							: idsInDividedFolder(hashFolder);
+					if (! ids.isEmpty()) {
+						out       .println("##Folder :" + hashFolder.getName());
+						System.out.println("##Folder :" + hashFolder.getName());
+						for (int j = 0; j < ids.size(); j++) {
+							out.print(ids.get(j));
+							out.print(j < ids.size() - 1 ? ";" : System.lineSeparator());
 						}
+						written += ids.size();
 					}
 				}
 			}
 			out.close();
-			System.out.println("List prepared");
+			out = null;
+
+			if (written == 0) {
+				System.err.println("WARNING: no structure files found, so there is nothing to scan.");
+				System.err.println("  archive     : " + archive.getAbsolutePath());
+				System.err.println("  file format : " + settingsManager.getFileFormat()
+						+ (pdbFormat ? "   (expecting *.ent.gz)" : "   (expecting *.cif.gz)"));
+				System.err.println("  A run from here will report zero cross-links, which is not the same"
+						+ " as there being none.");
+			} else {
+				System.out.println("List prepared: " + written + " structures");
+			}
 			return list;
 		} catch (IOException e) {
 			e.printStackTrace();
+		} finally {
+			if (out != null) {
+				out.close();
+			}
 		}
 		return null;
+	}
+
+	/** The divided archive: the coordinate files are directly inside the two-character folder. */
+	private static List<String> idsInDividedFolder(File hashFolder) {
+		List<String> ids = new ArrayList<String>();
+		String[] names = hashFolder.list();
+		if (names == null) {
+			return ids;
+		}
+		Arrays.sort(names);
+		for (String name : names) {
+			Matcher matcher = DIVIDED_FILE_PATTERN.matcher(name);
+			if (matcher.matches()) {
+				ids.add(matcher.group(2));
+			}
+		}
+		return ids;
+	}
+
+	/**
+	 * The per-entry archive: one directory per entry, the coordinates inside its
+	 * {@code structures/} sub-directory.
+	 * <p>
+	 * The identifier is written in its short form wherever the entry has one, so that a list
+	 * taken from the new archive reads the same as one taken from the old. Entries deposited
+	 * once the four-character space is exhausted have no short form and are written extended.
+	 */
+	private static List<String> idsInEntryDirectories(File hashFolder, boolean pdbFormat) {
+		Pattern pattern = pdbFormat ? ENTRY_PDB_PATTERN : ENTRY_MMCIF_PATTERN;
+		List<String> ids = new ArrayList<String>();
+		File[] entryFolders = hashFolder.listFiles();
+		if (entryFolders == null) {
+			return ids;
+		}
+		Arrays.sort(entryFolders);
+		for (File entryFolder : entryFolders) {
+			String[] names = new File(entryFolder, "structures").list();
+			if (names == null) {
+				continue;
+			}
+			Arrays.sort(names);
+			for (String name : names) {
+				Matcher matcher = pattern.matcher(name);
+				if (matcher.matches()) {
+					ids.add(new PdbId(matcher.group(1)).getId(true).toLowerCase());
+					break;   //an entry has one file in the chosen format; stop at it
+				}
+			}
+		}
+		return ids;
 	}
 
 

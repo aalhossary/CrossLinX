@@ -105,11 +105,25 @@ region the model occupies, rather than expecting the viewer to wrap it. That is 
 crystallographic work and does not belong in this application; it belongs wherever the map is
 prepared.
 
+## The volume servers accept only short identifiers
+
+`DensityService.boxUrl` asks RCSB and PDBe for a box around the interacting atoms. Those URLs
+address an entry by identifier rather than by archive path, so the July 2027 move does not touch
+them — but neither server accepts the extended spelling: `pdb_00001cbs` returns 404 from both,
+where `1cbs` returns 200.
+
+Nothing is affected today, because every entry that exists has a four-character form. Entries
+deposited once that space is exhausted will not, and until the servers accept the extended
+spelling there is no box that can be asked for. This is not ours to fix; it is here so the
+eventual failure is recognised rather than investigated from scratch.
+
 ## Smaller things
 
 - `ResultManager.generateFileLoadJMolScript` builds a path that omits the
   `data/structures/divided/<format>` segment which BioJava and `prepareFilesList` both use. The
   method is unused, but do not copy it — copy the construction in `prepareFilesList` instead.
+  Note it also predates the per-entry archive, which `prepareFilesList` now handles and it does
+  not.
 - `SettingsManager.saveSettings(true)` deliberately skips notifying listeners. That is right for
   shutdown, but it means any "apply on close" logic would not run.
 - `ProteinParser.parseChain_old` is dead code kept beside the live `parseChain`. Two statistics
