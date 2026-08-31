@@ -512,6 +512,7 @@ public class ResultManager {
 						+ " as there being none.");
 			} else {
 				System.out.println("List prepared: " + written + " structures");
+				warnAboutFormatCoverage();
 			}
 			return list;
 		} catch (IOException e) {
@@ -522,6 +523,24 @@ public class ResultManager {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Says what the chosen file format cannot reach, which the scan's own output never shows.
+	 * <p>
+	 * Every entry in the archive has an mmCIF file; not every entry has a PDB-format one,
+	 * because the format cannot express the largest structures. A scan in PDB format therefore
+	 * passes silently over thousands of entries, and the result looks like a complete answer.
+	 */
+	private static void warnAboutFormatCoverage() {
+		HoldingsIndex holdings = HoldingsIndex.get(settingsManager, settingsManager.isAutoFetch());
+		if (holdings == null) {
+			return;
+		}
+		String shortfall = holdings.coverageShortfall(settingsManager.getFileFormat());
+		if (shortfall != null) {
+			System.out.println("NOTE: " + shortfall);
+		}
 	}
 
 	/** The divided archive: the coordinate files are directly inside the two-character folder. */

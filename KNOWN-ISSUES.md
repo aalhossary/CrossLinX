@@ -114,8 +114,13 @@ where `1cbs` returns 200.
 
 Nothing is affected today, because every entry that exists has a four-character form. Entries
 deposited once that space is exhausted will not, and until the servers accept the extended
-spelling there is no box that can be asked for. This is not ours to fix; it is here so the
-eventual failure is recognised rather than investigated from scratch.
+spelling there is no box that can be asked for. This is not ours to fix.
+
+`TransitionNotice` says so from 5 May 2027, in the GUI and on the command line, because by then
+whoever is running this may not be whoever read this file. If you are reading this *because* of
+that notice: re-run the check — `curl -o /dev/null -w '%{http_code}'` against
+`https://maps.rcsb.org/x-ray/pdb_00001cbs/cell?detail=3` — and if it now returns 200, the
+identifier handling in `DensityService.boxUrl` can simply follow `PdbId` and the notice can go.
 
 ## Smaller things
 

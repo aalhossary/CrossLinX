@@ -1394,6 +1394,7 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			public void run() {
 				ParsingUI application = new ParsingUI();
 				application.getJFrame().setVisible(true);
+				TransitionNotice.warnInGui(application.getJFrame());
 			}
 		});
 	}
@@ -2111,6 +2112,9 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			public void run() {
 				int done = 0;
 				try {
+					//Read once, here rather than per entry, and on this thread rather than the
+					//event thread: fetching it is a download of its own.
+					HoldingsIndex.get(settingsManager, settingsManager.isAutoFetchElectronDensity());
 					while (prefetchRunning.get()) {
 						PdbId pdbId = prefetchQueue.pollFirst();
 						if (pdbId == null) {
@@ -2252,6 +2256,18 @@ public class ParsingUI implements ProteinParsingGUI, SettingListener{
 			}
 			if (kind == DensityMapKind.EM) {
 				return;   // EM goes through the cache path, which the batch does not drive
+			}
+			//A server computes an X-ray map from the deposited structure factors, so an entry
+			//without them has nothing any of them could return. Asked here rather than by
+			//trying: about a quarter of the archive is in that position, and discovering it a
+			//request at a time is most of what a whole-archive batch would spend its time on.
+			//The check is after the experimental method is known, so an EM entry - which has no
+			//structure factors either, and whose map lives in EMDB - is never labelled this way.
+			HoldingsIndex holdings = HoldingsIndex.get(settingsManager, false);
+			if (holdings != null && ! holdings.hasStructureFactors(pdbId)) {
+				setDensityState(pdbId, DensityService.DensityState.NO_DENSITY,
+						"No structure factors were deposited, so no map can be computed");
+				return;
 			}
 			setDensityState(pdbId, DensityService.DensityState.FETCHING, "Downloading...");
 			for (DensityMapSource source : orderedSources(kind)) {

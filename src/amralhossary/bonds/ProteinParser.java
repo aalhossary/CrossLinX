@@ -348,7 +348,9 @@ public class ProteinParser implements SettingListener{
 	}
 	
 	public static void main (String [] args) throws IOException {
-		
+		//Before anything else, so it is at the top of a long run's output rather than buried.
+		TransitionNotice.warnOnCommandLine();
+
 	    String version = getVersion();
 		InputStream docStream = ProteinParser.class.getResourceAsStream("/doc.txt");
 		Docopt docopt = new Docopt(docStream);
@@ -428,6 +430,8 @@ public class ProteinParser implements SettingListener{
 				public void run() {
 					ParsingUI application = new ParsingUI();
 					application.getJFrame().setVisible(true);
+					//After the window exists, so the notice has something to sit on.
+					TransitionNotice.warnInGui(application.getJFrame());
 				}
 			});
 		}
